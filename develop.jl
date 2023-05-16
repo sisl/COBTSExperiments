@@ -3,17 +3,17 @@ Pkg.activate(".")
 dev_packages = [
     # Remote Packages
     # Solvers
-    PackageSpec(url="https://github.com/sisl/CPOMDPs.jl"),
-    PackageSpec(url="https://github.com/sisl/CPOMCP.jl"),
-    PackageSpec(url="https://github.com/sisl/CMCTS.jl"),
-    PackageSpec(url="https://github.com/sisl/CPOMCPOW.jl"),
-
+    # PackageSpec(url="https://github.com/sisl/CPOMDPs.jl"),
+    
     # Problems 
     # PackageSpec(url="https://github.com/JuliaPOMDP/RockSample.jl", rev="4f8112b975d71c59ee6b67721bb1d41c06ad1334"),
-    PackageSpec(url="https://github.com/sisl/SpillpointPOMDP.jl") #, rev="976d171d370046f9991ce47d939c9256659a3404")
+    # PackageSpec(url="https://github.com/sisl/SpillpointPOMDP.jl") #, rev="976d171d370046f9991ce47d939c9256659a3404")
 
     # Local Packages
-    # PackageSpec(url=joinpath(@__DIR__, "ObservationModels.jl")),
+    PackageSpec(url=joinpath(@__DIR__, "CMCTS.jl")),
+    PackageSpec(url=joinpath(@__DIR__, "COTS.jl")),
+    PackageSpec(url=joinpath(@__DIR__, "CPOMDPs.jl")),
+
 ]
 
 ci = haskey(ENV, "CI") && ENV["CI"] == "true"

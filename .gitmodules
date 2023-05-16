@@ -1,0 +1,6 @@
+[submodule "CPOMDPs.jl"]
+	path = CPOMDPs.jl
+	url = https://github.com/sisl/CPOMDPs.jl
+[submodule "CMCTS.jl"]
+	path = CMCTS.jl
+	url = https://github.com/sisl/CMCTS.jl
