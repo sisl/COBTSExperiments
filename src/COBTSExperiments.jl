@@ -16,20 +16,21 @@ using FileIO
 using POMDPs
 using POMDPTools
 
-# non-constrained baseline
-using BasicPOMCP
-using MCTS # belief-mcts for belief dpw
-using POMCPOW
-
 using CPOMDPs
-import CPOMDPs: costs, costs_limit, n_costs
+import CPOMDPs: costs, costs_limit, n_costs, terminate
 
 # constrained solvers
 # using CMCTS
+# using COTS
 
 # models 
 using POMDPModels
-export LightDarkNew, CLightDarkNew, zeroV_trueC
+export 
+    LightDarkNew, 
+    CLightDarkNew, 
+    zeroV_trueC,
+    Navigate,
+    GoToGoal
 include("cpomdps/clightdark.jl")
 
 #using RockSample
@@ -59,9 +60,8 @@ include("utils.jl")
 
 # experiment scripts
 export
-    run_pomdp_simulation,
-    run_cpomdp_simulation,
-    run_lambda_experiments
+    run_cmdp_simulation,
+    run_cpomdp_simulation
 include("experiments.jl")
 
 

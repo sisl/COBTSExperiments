@@ -1,4 +1,4 @@
-module CMCTS
+module COTS
 
 using CPOMDPs
 

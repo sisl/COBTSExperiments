@@ -133,12 +133,12 @@ heuristicV(p::POMDPTools.GenerativeBeliefMDP{P}, s::ParticleFilters.ParticleColl
 ### CMDP Low Level Policies
 
 # navigate
-function navigate(problem::UnderlyingMDP{P}, s::LightDark1DState, goal::Float64) where P<:CLightDarkNew
+function navigate(problem::CLightDarkNew, s::LightDark1DState, goal::Float64) 
     action = 0
     best_dist = Inf
     for a in actions(problem)
         (a ≈ 0) && continue
-        dist = abs(s.y+a*g2g.problem.step_size-goal)
+        dist = abs(s.y+a*problem.pomdp.step_size-goal)
         if dist < best_dist
             best_dist = dist
             action = a
@@ -153,9 +153,9 @@ struct Navigate <: LowLevelPolicy
     goal::Float64
 end
 
-terminate(nav::Navigate, s::LightDark1DState) = Deterministic((abs(s.y-nav.info[:goal]) <= 1))
+terminate(nav::Navigate, s::LightDark1DState) = Deterministic((abs(s.y-nav.goal) <= 1))
 
-POMDPTools.action_info(nav::Navigate, s::LightDark1DState) = navigate(g2g.problem, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-goal))
+POMDPTools.action_info(nav::Navigate, s::LightDark1DState) = navigate(nav.problem.cpomdp, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
 
 # navigate to the goal and terminate
 struct GoToGoal <: LowLevelPolicy
@@ -165,7 +165,7 @@ end
 terminate(::GoToGoal, ::LightDark1DState) = Deterministic(false)
 
 function POMDPTools.action_info(g2g::GoToGoal, s::LightDark1DState)
-    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem, s, 0.)
+    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem.cpomdp, s, 0.)
     return action, (;goal=0., distance=abs(s.y))
 end
             
