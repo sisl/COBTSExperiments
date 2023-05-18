@@ -129,9 +129,6 @@ heuristicV(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollec
 heuristicV(p::POMDPTools.GenerativeBeliefMDP{P}, s::ParticleFilters.ParticleCollection{S}, 
     args...) where {P<:LightDarkNew, S<:LightDark1DState} = return heuristicV(p.pomdp, s)
 
-abstract type LowLevelPolicy <: POMDPs.Policy end
-terminate(p::LowLevelPolicy, s, a) = terminate(p, s)
-action(p::LowLevelPolicy,s) = first(POMDPTools.action_info(p,s))
 
 ### CMDP Low Level Policies
 
@@ -153,51 +150,24 @@ end
 # Low-Level Policies
 struct Navigate <: LowLevelPolicy
     problem::UnderlyingCMDP{<:CLightDarkNew}
-    info::NamedTuple
+    goal::Float64
 end
-Navigate(p::UnderlyingCMDP{P}, goal::Float64) = Navigate(p,(;goal=goal)) where P<:CLightDarkNew
 
 terminate(nav::Navigate, s::LightDark1DState) = Deterministic((abs(s.y-nav.info[:goal]) <= 1))
 
-POMDPTools.action_info(nav::Navigate, s::LightDark1DState) = navigate(g2g.problem, s, nav.info[:goal])
+POMDPTools.action_info(nav::Navigate, s::LightDark1DState) = navigate(g2g.problem, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-goal))
 
 # navigate to the goal and terminate
 struct GoToGoal <: LowLevelPolicy
     problem::UnderlyingCMDP{<:CLightDarkNew}
-    info::NamedTuple
 end
 
 terminate(::GoToGoal, ::LightDark1DState) = Deterministic(false)
 
 function POMDPTools.action_info(g2g::GoToGoal, s::LightDark1DState)
     action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem, s, 0.)
-    return action, g2g.info
+    return action, (;goal=0., distance=abs(s.y))
 end
             
-# High Level Policy
-
-mutable struct RandomHighLevelPolicy <: POMDPs.Policy
-    options::Vector{LowLevelPolicy}
-    running::LowLevelPolicy
-    rng::Random.RNG
-    step_counter::Int
-end
-
-function POMDPTools.action_info(p::RandomHighLevelPolicy, s)
-    dist = terminate(p, s)
-    info = (;new_option=false)
-    if rand(dist, p.rng)
-        # terminate and start new
-        p.running = rand(p.options)
-        p.step_counter = 0
-        info[:new_option]= true
-    end
-    a, ai = POMDPTools.action_info(p.running,s)
-    p.step_counter += 1
-    return a, merge(ai, info)
-end
-        
-    
-
 
 
