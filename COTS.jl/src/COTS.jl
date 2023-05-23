@@ -25,6 +25,10 @@ export
     estimate_value
 include("rollout.jl")
 
+export 
+    next_option
+include("option_gen.jl")
+
 export
     COTSSolver,
     COTSPlanner,

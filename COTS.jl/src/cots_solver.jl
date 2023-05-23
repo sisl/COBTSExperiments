@@ -3,7 +3,9 @@
 function update!(p::COTSPlanner, s, option, a, new_option) 
     p._running = option
     p._step_counter = new_option ? 0 : p.step_counter + 1
-    return Dict(new_option => new_option, step_counter=>p._step_counter)
+    step_cost = costs(p.mdp, s, a)
+    p.budget = (p.budget - step_cost) / discount(p.mdp)
+    return (;new_option = new_option, step_counter=p._step_counter, step_cost=step_cost)
 end
 
 """
@@ -37,12 +39,12 @@ function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
             if haskey(tree.s_lookup, s)
                 snode = tree.s_lookup[s]
             else
-                snode = insert_state_node!(tree, s, true)
+                snode = insert_state_node!(tree, s, 0, true)
             end
         else
             tree = COTSTree{S,A}(p.solver.n_iterations)
             p.tree = tree
-            snode = insert_state_node!(tree, s, p.solver.check_repeat_state)
+            snode = insert_state_node!(tree, s, 0, p.solver.check_repeat_state)
         end
 
         # perform search for stochastic policy
@@ -55,10 +57,9 @@ function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
             info[:tree] = tree
         end
 
-        # take random action from resulting best policy and adjust one-step cost memory
+        # take random action from resulting best policy
         a = tree.a_labels[rand(p.rng,policy)]
-        tlc = map(i->get(tree.top_level_costs, i, zeros(Float64, size(p._lambda))), policy.vals)
-        p._cost_mem = tlc ⋅ policy.probs
+
     catch ex
         a = convert(actiontype(p.mdp), default_action(p.solver.default_action, p.mdp, s, ex))
         info[:exception] = ex
@@ -88,7 +89,7 @@ function search(p::COTSPlanner, snode::Int, info::Dict)
     
     for i = 1:p.solver.n_iterations
         nquery += 1
-        simulate(p, snode, p.solver.depth) # (not 100% sure we need to make a copy of the state here)
+        simulate(p, snode, p.solver.depth, p.solver.budget) # (not 100% sure we need to make a copy of the state here)
         p.solver.show_progress ? next!(progress) : nothing
         if timer() - start_s >= p.solver.max_time
             p.solver.show_progress ? finish!(progress) : nothing
@@ -129,7 +130,7 @@ end
 """
 Return the reward for one iteration of COTS.
 """
-function simulate(dpw::COTSPlanner, snode::Int, d::Int)
+function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float32})
     S = statetype(dpw.mdp)
     A = actiontype(dpw.mdp)
     sol = dpw.solver
@@ -138,14 +139,14 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int)
     dpw.reset_callback(dpw.mdp, s) # Optional: used to reset/reinitialize MDP to a given state.
     if isterminal(dpw.mdp, s)
         return 0.0, zeros(Float64, n_costs(dpw.mdp))
-    elseif d == 0
+    elseif d <= 0
         return estimate_value(dpw.solved_estimate, dpw.mdp, s, d)
     end
 
     # action progressive widening
     if dpw.solver.enable_action_pw
         if length(tree.children[snode]) <= sol.k_action*tree.total_n[snode]^sol.alpha_action # criterion for new action generation
-            a = next_action(dpw.next_action, dpw.mdp, s, StateNode(tree, snode)) # action generation step
+            a = next_option(dpw.next_option, dpw.mdp, s, StateNode(tree, snode), budget) # action generation step
             if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
                 n0 = init_N(sol.init_N, dpw.mdp, s, a)
                 q0 = init_Q(sol.init_Q, dpw.mdp, s, a)

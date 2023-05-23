@@ -140,7 +140,7 @@ Fields:
     init_Qc::Any = 0.
     init_λ::Union{Nothing,Vector{Float64}} = nothing
     max_clip::Union{Float64,Vector{Float64}} = Inf
-    next_action::Any = RandomActionGenerator(rng)
+    next_action::Any = RandomOptionGenerator(rng, options, enable_constraint_pw)
     default_action::Any = ExceptionRethrow()
     reset_callback::Function = (mdp, s) -> false
     show_progress::Bool = false
@@ -167,7 +167,6 @@ mutable struct DPWStateNode{S,A} <: AbstractStateNode
     DPWStateNode{S,A}() where {S,A} = new(Dict{A,DPWStateActionNode{S}}(),0)
 end
 =#
-
 mutable struct COTSTree{S,A}
     # for each state node
     total_n::Vector{Int}
@@ -175,7 +174,6 @@ mutable struct COTSTree{S,A}
     s_labels::Vector{S}
     s_lookup::Dict{S, Int}
     depth::Vector{Int} # depth of each state node
-    rem_budget::Vector{Vector{Float64}} # remaining budget at each state node
 
     # for each state-action node
     n::Vector{Int}
@@ -189,10 +187,6 @@ mutable struct COTSTree{S,A}
     n_a_children::Vector{Int}
     unique_transitions::Set{Tuple{Int,Int}}
 
-    # likely remove
-    top_level_costs::Dict{Int,Vector{Float64}}
-
-
     function COTSTree{S,A}(sz::Int=1000) where {S,A} 
         sz = min(sz, 100_000)
         return new(sizehint!(Int[], sz),
@@ -200,7 +194,6 @@ mutable struct COTSTree{S,A}
                    sizehint!(S[], sz),
                    Dict{S, Int}(),
                    sizehint!(Int[], sz), #depth
-                   sizehint!(Vector{Vector{Float64}}[], sz) #budget
 
                    sizehint!(Int[], sz),
                    sizehint!(Float64[], sz),
@@ -211,18 +204,16 @@ mutable struct COTSTree{S,A}
 
                    sizehint!(Int[], sz),
                    Set{Tuple{Int,Int}}(),
-                   Dict{Int,Vector{Float64}}(), #top_level_costs
                   )
     end
 end
 
 
-function insert_state_node!(tree::COTSTree{S,A}, s::S, depth::Int, c_rem::Vector{Float64}, maintain_s_lookup=true) where {S,A}
+function insert_state_node!(tree::COTSTree{S,A}, s::S, depth::Int, maintain_s_lookup=true) where {S,A}
     push!(tree.total_n, 0)
     push!(tree.children, Int[])
     push!(tree.s_labels, s)
     push!(tree.depth, depth)
-    push!(tree.rem_budget, c_rem)
     snode = length(tree.total_n)
     if maintain_s_lookup
         tree.s_lookup[s] = snode
@@ -231,7 +222,8 @@ function insert_state_node!(tree::COTSTree{S,A}, s::S, depth::Int, c_rem::Vector
 end
 
 
-function insert_action_node!(tree::COTSTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, qc0::Vector{Float64}, maintain_a_lookup=true) where {S,A}
+function insert_action_node!(tree::COTSTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, qc0::Vector{Float64}, 
+        maintain_a_lookup=true) where {S,A}
     push!(tree.n, n0)
     push!(tree.q, q0)
     push!(tree.qc, qc0)
@@ -274,7 +266,6 @@ mutable struct COTSPlanner{P<:Union{MDP,POMDP}, S, A, SE, NA, RCB, RNG} <: Optio
     _step_counter::Int # steps that option has been running
 
     # cpomdp parameters
-    _expected_updated_budget::Vector{Float64} # estimate for post-option budget
     _lambda::Union{Nothing,Vector{Float64}} # weights for dual ascent
 
 end
