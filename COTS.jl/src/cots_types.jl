@@ -12,7 +12,7 @@ InverseAlphaSchedule() = InverseAlphaSchedule(1.)
 alpha(sched::InverseAlphaSchedule, query::Int) = sched.scale/query
 
 """
-CMCTS solver with DPW
+Constrained Options Tree Search solver
 
 Fields:
 
@@ -113,78 +113,38 @@ Fields:
     timer::Function:
         Timekeeping method. Search iterations ended when `timer() - start_time ≥ max_time`.
 """
-mutable struct CDPWSolver <: AbstractCMCTSSolver
-    depth::Int
-    exploration_constant::Float64
-    nu::Float64 # slack to give when searching
-    n_iterations::Int
-    max_time::Float64
-    k_action::Float64
-    alpha_action::Float64
-    k_state::Float64
-    alpha_state::Float64
-    keep_tree::Bool
-    enable_action_pw::Bool
-    enable_state_pw::Bool
-    check_repeat_state::Bool
-    check_repeat_action::Bool
-    tree_in_info::Bool
-    search_progress_info::Bool
-    return_best_cost::Bool
-    rng::AbstractRNG
-    alpha_schedule::AlphaSchedule
-    estimate_value::Any
-    init_Q::Any
-    init_N::Any
-    init_Qc::Any
-    init_λ::Union{Nothing,Vector{Float64}}
-    max_clip::Union{Float64,Vector{Float64}}
-    next_action::Any
-    default_action::Any
-    reset_callback::Function
-    show_progress::Bool
-    timer::Function
-end
-
-"""
-    CDPWSolver()
-
-Use keyword arguments to specify values for the fields
-"""
-function CDPWSolver(;depth::Int=10,
-                    exploration_constant::Float64=1.0,
-                    nu::Float64=0.01,
-                    n_iterations::Int=100,
-                    max_time::Float64=Inf,
-                    k_action::Float64=10.0,
-                    alpha_action::Float64=0.5,
-                    k_state::Float64=10.0,
-                    alpha_state::Float64=0.5,
-                    keep_tree::Bool=false,
-                    enable_action_pw::Bool=true,
-                    enable_state_pw::Bool=true,
-                    check_repeat_state::Bool=true,
-                    check_repeat_action::Bool=true,
-                    tree_in_info::Bool=false,
-                    search_progress_info::Bool=false,
-                    return_best_cost::Bool=false,
-                    rng::AbstractRNG=Random.GLOBAL_RNG,
-                    alpha_schedule::AlphaSchedule = InverseAlphaSchedule(),
-                    estimate_value::Any=RolloutEstimator(RandomSolver(rng)),
-                    init_Q::Any=0.0,
-                    init_N::Any=0,
-                    init_Qc::Any=0.,
-                    init_λ::Union{Nothing,Vector{Float64}}=nothing,
-                    max_clip::Union{Float64,Vector{Float64}}=Inf,
-                    next_action::Any=RandomActionGenerator(rng),
-                    default_action::Any=ExceptionRethrow(),
-                    reset_callback::Function=(mdp, s) -> false,
-                    show_progress::Bool=false,
-                    timer=() -> 1e-9 * time_ns())
-    CDPWSolver(depth, exploration_constant, nu, n_iterations, max_time, k_action, alpha_action, k_state, alpha_state, 
-        keep_tree, enable_action_pw, enable_state_pw, check_repeat_state, check_repeat_action, 
-        tree_in_info, search_progress_info, return_best_cost, rng, alpha_schedule, estimate_value, init_Q, init_N, init_Qc, init_λ,
-        max_clip, next_action, default_action, reset_callback, show_progress, timer)
+@with_kw mutable struct COTSSolver <: Solver
+    options::Union{Nothing,Vector{<:LowLevelPolicy}} = nothing
+    enable_constraint_pw::Bool = false
+    depth::Int = 10
+    exploration_constant::Float64 = 1.0
+    nu::Float64 = 0.01 # slack to give when searching
+    n_iterations::Int = 100
+    max_time::Float64 = Inf
+    k_action::Float64 = 10.0
+    alpha_action::Float64 = 0.5
+    k_state::Float64 = 10.0
+    alpha_state::Float64 = 0.5
+    keep_tree::Bool = false
+    enable_action_pw::Bool = true
+    enable_state_pw::Bool = true
+    check_repeat_state::Bool = true
+    check_repeat_action::Bool = true
+    tree_in_info::Bool = false
+    search_progress_info::Bool = false
+    rng::AbstractRNG = Random.GLOBAL_RNG
+    alpha_schedule::AlphaSchedule = InverseAlphaSchedule()
+    estimate_value::Any = RolloutEstimator(RandomSolver(rng))
+    init_Q::Any = 0.
+    init_N::Any = 0
+    init_Qc::Any = 0.
+    init_λ::Union{Nothing,Vector{Float64}} = nothing
+    max_clip::Union{Float64,Vector{Float64}} = Inf
+    next_action::Any = RandomActionGenerator(rng)
+    default_action::Any = ExceptionRethrow()
+    reset_callback::Function = (mdp, s) -> false
+    show_progress::Bool = false
+    timer::Function = () -> 1e-9 * time_ns()
 end
 
 #=
@@ -208,12 +168,14 @@ mutable struct DPWStateNode{S,A} <: AbstractStateNode
 end
 =#
 
-mutable struct CDPWTree{S,A}
+mutable struct COTSTree{S,A}
     # for each state node
     total_n::Vector{Int}
     children::Vector{Vector{Int}}
     s_labels::Vector{S}
     s_lookup::Dict{S, Int}
+    depth::Vector{Int} # depth of each state node
+    rem_budget::Vector{Vector{Float64}} # remaining budget at each state node
 
     # for each state-action node
     n::Vector{Int}
@@ -227,17 +189,19 @@ mutable struct CDPWTree{S,A}
     n_a_children::Vector{Int}
     unique_transitions::Set{Tuple{Int,Int}}
 
-    # constraints
+    # likely remove
     top_level_costs::Dict{Int,Vector{Float64}}
 
 
-    function CDPWTree{S,A}(sz::Int=1000) where {S,A} 
+    function COTSTree{S,A}(sz::Int=1000) where {S,A} 
         sz = min(sz, 100_000)
         return new(sizehint!(Int[], sz),
                    sizehint!(Vector{Int}[], sz),
                    sizehint!(S[], sz),
                    Dict{S, Int}(),
-                   
+                   sizehint!(Int[], sz), #depth
+                   sizehint!(Vector{Vector{Float64}}[], sz) #budget
+
                    sizehint!(Int[], sz),
                    sizehint!(Float64[], sz),
                    sizehint!(Vector{Vector{Float64}}[], sz), #qc
@@ -253,10 +217,12 @@ mutable struct CDPWTree{S,A}
 end
 
 
-function insert_state_node!(tree::CDPWTree{S,A}, s::S, maintain_s_lookup=true) where {S,A}
+function insert_state_node!(tree::COTSTree{S,A}, s::S, depth::Int, c_rem::Vector{Float64}, maintain_s_lookup=true) where {S,A}
     push!(tree.total_n, 0)
     push!(tree.children, Int[])
     push!(tree.s_labels, s)
+    push!(tree.depth, depth)
+    push!(tree.rem_budget, c_rem)
     snode = length(tree.total_n)
     if maintain_s_lookup
         tree.s_lookup[s] = snode
@@ -265,7 +231,7 @@ function insert_state_node!(tree::CDPWTree{S,A}, s::S, maintain_s_lookup=true) w
 end
 
 
-function insert_action_node!(tree::CDPWTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, qc0::Vector{Float64}, maintain_a_lookup=true) where {S,A}
+function insert_action_node!(tree::COTSTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, qc0::Vector{Float64}, maintain_a_lookup=true) where {S,A}
     push!(tree.n, n0)
     push!(tree.q, q0)
     push!(tree.qc, qc0)
@@ -281,35 +247,42 @@ function insert_action_node!(tree::CDPWTree{S,A}, snode::Int, a::A, n0::Int, q0:
     return sanode
 end
 
-Base.isempty(tree::CDPWTree) = isempty(tree.n) && isempty(tree.q)
+Base.isempty(tree::COTSTree) = isempty(tree.n) && isempty(tree.q)
 
-struct CDPWStateNode{S,A} <: AbstractStateNode
-    tree::CDPWTree{S,A}
+struct COTSStateNode{S,A} <: AbstractStateNode
+    tree::COTSTree{S,A}
     index::Int
 end
 
-children(n::CDPWStateNode) = n.tree.children[n.index]
-n_children(n::CDPWStateNode) = length(children(n))
-isroot(n::CDPWStateNode) = n.index == 1
+children(n::COTSStateNode) = n.tree.children[n.index]
+n_children(n::COTSStateNode) = length(children(n))
+isroot(n::COTSStateNode) = n.index == 1
 
 
-mutable struct CDPWPlanner{P<:Union{MDP,POMDP}, S, A, SE, NA, RCB, RNG} <: AbstractCMCTSPlanner{P}
-    solver::CDPWSolver
+mutable struct COTSPlanner{P<:Union{MDP,POMDP}, S, A, SE, NA, RCB, RNG} <: OptionsPolicy
+    solver::COTSSolver
     mdp::P
-    tree::Union{Nothing, CDPWTree{S,A}}
+    tree::Union{Nothing, COTSTree{S,A}}
     solved_estimate::SE
     next_action::NA
     reset_callback::RCB
     rng::RNG
     budget::Vector{Float64} # remaining budget for constraint search
-    _cost_mem::Union{Nothing,Vector{Float64}}   # estimate for one-step cost
-    _lambda::Union{Nothing,Vector{Float64}}    # weights for dual ascent
+    
+    # options parameters
+    _running::Union{Nothing,LowLevelPolicy} # option that is currently running
+    _step_counter::Int # steps that option has been running
+
+    # cpomdp parameters
+    _expected_updated_budget::Vector{Float64} # estimate for post-option budget
+    _lambda::Union{Nothing,Vector{Float64}} # weights for dual ascent
+
 end
 
-
-function CDPWPlanner(solver::CDPWSolver, mdp::P) where P<:Union{POMDP,MDP}
+function COTSPlanner(solver::COTSSolver, mdp::P) where P<:Union{CPOMDP,CMDP}
     se = convert_estimator(solver.estimate_value, solver, mdp)
-    return CDPWPlanner{P,
+    @assert solver.options !== nothing "No options specified in COTSSolver."
+    return COTSPlanner{P,
                       statetype(P),
                       actiontype(P),
                       typeof(se),
@@ -323,10 +296,16 @@ function CDPWPlanner(solver::CDPWSolver, mdp::P) where P<:Union{POMDP,MDP}
                                           solver.reset_callback,
                                           solver.rng,
                                           costs_limit(mdp),
-                                          nothing, 
+                                          # options parameters
+                                          nothing,
+                                          0, 
+
+                                          #cpomdp parameters
+                                          costs_limit(mdp),
                                           nothing, 
                      )
 end
-
-Random.seed!(p::CDPWPlanner, seed) = Random.seed!(p.rng, seed)
-POMDPs.solve(solver::CDPWSolver, mdp::Union{POMDP,MDP}) = CDPWPlanner(solver, mdp)
+rng(p::COTSPlanner) = p.rng
+low_level(p::COTSPlanner) = p._running
+Random.seed!(p::COTSPlanner, seed) = Random.seed!(p.rng, seed)
+POMDPs.solve(solver::COTSSolver, mdp::Union{POMDP,MDP}) = COTSPlanner(solver, mdp)

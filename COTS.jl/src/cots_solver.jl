@@ -1,27 +1,28 @@
-dot(a::Vector,b::Vector) = sum(a .* b)
+
+
+function update!(p::COTSPlanner, s, option, a, new_option) 
+    p._running = option
+    p._step_counter = new_option ? 0 : p.step_counter + 1
+    return Dict(new_option => new_option, step_counter=>p._step_counter)
+end
 
 """
 Delete existing decision tree.
 """
-function clear_tree!(p::CDPWPlanner)
+function clear_tree!(p::COTSPlanner)
     p.tree = nothing
 end
 
 """
-Construct an MCTSCDPW tree and choose the best action.
+Construct an COTS tree and choose the best option. Also output some information.
 """
-POMDPs.action(p::CDPWPlanner, s) = first(action_info(p, s))
-
-"""
-Construct an MCTSCDPW tree and choose the best action. Also output some information.
-"""
-function POMDPTools.action_info(p::CDPWPlanner, s; tree_in_info=false)
+function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
     local a::actiontype(p.mdp)
     info = Dict{Symbol, Any}()
     try
         if isterminal(p.mdp, s)
             error("""
-                  MCTS cannot handle terminal states. action was called with
+                  COTS cannot handle terminal states. action was called with
                   s = $s
                   """)
         end
@@ -31,7 +32,7 @@ function POMDPTools.action_info(p::CDPWPlanner, s; tree_in_info=false)
             s = convert(S,s)
         end
         A = actiontype(p.mdp)
-        if p.solver.keep_tree && p.tree != nothing
+        if p.solver.keep_tree && p.tree !== nothing
             tree = p.tree
             if haskey(tree.s_lookup, s)
                 snode = tree.s_lookup[s]
@@ -39,7 +40,7 @@ function POMDPTools.action_info(p::CDPWPlanner, s; tree_in_info=false)
                 snode = insert_state_node!(tree, s, true)
             end
         else
-            tree = CDPWTree{S,A}(p.solver.n_iterations)
+            tree = COTSTree{S,A}(p.solver.n_iterations)
             p.tree = tree
             snode = insert_state_node!(tree, s, p.solver.check_repeat_state)
         end
@@ -57,7 +58,7 @@ function POMDPTools.action_info(p::CDPWPlanner, s; tree_in_info=false)
         # take random action from resulting best policy and adjust one-step cost memory
         a = tree.a_labels[rand(p.rng,policy)]
         tlc = map(i->get(tree.top_level_costs, i, zeros(Float64, size(p._lambda))), policy.vals)
-        p._cost_mem = dot(tlc, policy.probs)
+        p._cost_mem = tlc ⋅ policy.probs
     catch ex
         a = convert(actiontype(p.mdp), default_action(p.solver.default_action, p.mdp, s, ex))
         info[:exception] = ex
@@ -66,7 +67,7 @@ function POMDPTools.action_info(p::CDPWPlanner, s; tree_in_info=false)
     return a, info
 end
 
-function search(p::CDPWPlanner, snode::Int, info::Dict)
+function search(p::COTSPlanner, snode::Int, info::Dict)
     timer = p.solver.timer
     p.solver.show_progress ? progress = Progress(p.solver.n_iterations) : nothing
     nquery = 0
@@ -126,9 +127,9 @@ function search(p::CDPWPlanner, snode::Int, info::Dict)
 end
 
 """
-Return the reward for one iteration of MCTSCDPW.
+Return the reward for one iteration of COTS.
 """
-function simulate(dpw::CDPWPlanner, snode::Int, d::Int)
+function simulate(dpw::COTSPlanner, snode::Int, d::Int)
     S = statetype(dpw.mdp)
     A = actiontype(dpw.mdp)
     sol = dpw.solver
@@ -144,7 +145,7 @@ function simulate(dpw::CDPWPlanner, snode::Int, d::Int)
     # action progressive widening
     if dpw.solver.enable_action_pw
         if length(tree.children[snode]) <= sol.k_action*tree.total_n[snode]^sol.alpha_action # criterion for new action generation
-            a = next_action(dpw.next_action, dpw.mdp, s, CDPWStateNode(tree, snode)) # action generation step
+            a = next_action(dpw.next_action, dpw.mdp, s, StateNode(tree, snode)) # action generation step
             if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
                 n0 = init_N(sol.init_N, dpw.mdp, s, a)
                 q0 = init_Q(sol.init_Q, dpw.mdp, s, a)
@@ -215,23 +216,12 @@ function simulate(dpw::CDPWPlanner, snode::Int, d::Int)
         end
     end
 
-    if sol.return_best_cost
-        LC = dot(dpw._lambda .+ 1e-3, qc)
-        for ch in tree.children[snode]
-            LC_temp = dot(dpw._lambda .+ 1e-3, tree.qc[ch])
-            if LC_temp < LC
-                LC = LC_temp
-                qc = tree.qc[ch]
-            end
-        end
-    end
-
     return q, qc
 end
 
 
 # return sparse categorical policy over best action node indices
-function action_policy_UCB(t::CDPWTree, s::Int, lambda::Vector{Float64}, c::Float64, nu::Float64)
+function action_policy_UCB(t::COTSTree, s::Int, lambda::Vector{Float64}, c::Float64, nu::Float64)
     # Q_lambda = Q_value - lambda'Q_c + c sqrt(log(N)/N(h,a))
     ltn = log(t.total_n[s])
     best_nodes = Int[]
@@ -240,11 +230,11 @@ function action_policy_UCB(t::CDPWTree, s::Int, lambda::Vector{Float64}, c::Floa
     for node in t.children[s]
         n = t.n[node]
         if n == 0 && ltn <= 0.0
-            criterion_value = t.q[node] - dot(lambda,t.qc[node])
+            criterion_value = t.q[node] - lambda⋅t.qc[node]
         elseif n == 0 && t.q[node] == -Inf
             criterion_value = Inf
         else
-            criterion_value = t.q[node] - dot(lambda,t.qc[node])
+            criterion_value = t.q[node] - lambda⋅t.qc[node]
             if c > 0
                 criterion_value += c*sqrt(ltn/n)
             end
@@ -268,15 +258,15 @@ function action_policy_UCB(t::CDPWTree, s::Int, lambda::Vector{Float64}, c::Floa
     
     # weigh actions
     if length(best_nodes) == 1
-        weights = [1.0]
+        dist = Determistic(best_nodes)
     else
-        weights = solve_lp(t, best_nodes)
+        dist = SparseCat(best_nodes,solve_lp(t, best_nodes))
     end
-    return SparseCat(best_nodes, weights)
+    return dist
 end
 
-function solve_lp(t::CDPWTree, best_nodes::Vector{Int})
-    # error("Multiple CDPW best actions not implemented")
-    # random for now
+function solve_lp(t::COTSTree, best_nodes::Vector{Int})
+    # Multiple COTS best actions not implemented
+    # Random for now
     return ones(Float64, length(best_nodes)) / length(best_nodes)
 end

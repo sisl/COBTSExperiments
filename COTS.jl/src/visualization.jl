@@ -21,9 +21,9 @@
 #     return D3Tree(policy.tree, root_state; kwargs...)
 # end
 
-function D3Trees.D3Tree(policy::CDPWPlanner; kwargs...)
+function D3Trees.D3Tree(policy::COTSPlanner; kwargs...)
     @warn("""
-         D3Tree(planner::CDPWPlanner) is deprecated and may be removed in the future. Instead, please use
+         D3Tree(planner::COTSPlanner) is deprecated and may be removed in the future. Instead, please use
 
              a, info = action_info(planner, state)
              D3Tree(info[:tree])
@@ -109,7 +109,7 @@ end
 #     return D3Tree(nodes; title=title, kwargs...)
 # end
 
-function D3Trees.D3Tree(tree::CDPWTree; title="CMCTS-DPW Tree", kwargs...)
+function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
     lens = length(tree.total_n)
     lensa = length(tree.n)
     len = lens + lensa
@@ -164,6 +164,7 @@ function D3Trees.D3Tree(tree::CDPWTree; title="CMCTS-DPW Tree", kwargs...)
                       Q: $(tree.q[sa])
                       N: $(tree.n[sa])
                       C: $(tree.qc[sa])
+                      d: $(tree.depth[sa])
                       """
 
         rel_q = (tree.q[sa]-min_q)/(max_q-min_q)

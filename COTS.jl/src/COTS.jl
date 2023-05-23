@@ -1,6 +1,7 @@
 module COTS
 
 using CPOMDPs
+import CPOMDPs: rng, low_level, select_option, update!
 
 using Infiltrator
 using POMDPs
@@ -14,21 +15,9 @@ using Printf
 using ProgressMeter
 using POMDPLinter: @show_requirements, requirements_info, @POMDP_require, @req, @subreq
 import POMDPLinter
-
+using Parameters
 using D3Trees
 using Colors
-
-#export
-#    StateNode
-
-#export
-#    AbstractStateNode,
-#    StateActionStateNode,
-#    DPWStateActionNode,
-#    DPWStateNode,
-
-abstract type AbstractCMCTSPlanner{P<:Union{CMDP,CPOMDP}} <: Policy end
-abstract type AbstractCMCTSSolver <: Solver end
 
 #include("requirements_info.jl") # TODO
 
@@ -36,34 +25,23 @@ export
     estimate_value
 include("rollout.jl")
 
-# export 
-#    CMCTSSolver,
-#    CMCTSPlanner
-# include("vanilla_types.jl")
-# include("vanilla_solver.jl")
-
-
 export
-    CDPWSolver,
-    CDPWPlanner,
-    BeliefCMCTSSolver,
-    AbstractCMCTSPlanner,
-    AbstractCMCTSSolver,
+    COTSSolver,
+    COTSPlanner,
     solve,
     action,
     action_info,
     clear_tree!
-
-include("cdpw_types.jl")
-include("cdpw_solver.jl")
+include("cots_types.jl")
+include("cots_solver.jl")
 
 export
-    BeliefCMCTSSolver,
-    CMCTSBudgetUpdateWrapper,
+    COBTSSolver,
+    COBTSBudgetUpdateWrapper,
     updater,
     update,
     initialize_belief
-include("belief_cmcts.jl")
+include("cobts.jl")
 
 export
     tooltip_tag,

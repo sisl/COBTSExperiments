@@ -1,4 +1,4 @@
-function POMDPLinter.requirements_info(solver::AbstractCMCTSSolver, problem::Union{POMDP,MDP})
+function POMDPLinter.requirements_info(solver::Union{COTSSolver,COBTSSolver}, problem::Union{POMDP,MDP})
     try
         isd = initialstate(problem)
         s = rand(MersenneTwister(1), isd)
@@ -18,12 +18,12 @@ function POMDPLinter.requirements_info(solver::AbstractCMCTSSolver, problem::Uni
     end
 end
 
-function POMDPLinter.requirements_info(solver::AbstractCMCTSSolver, problem::Union{POMDP,MDP}, s)
+function POMDPLinter.requirements_info(solver::Union{COTSSolver,COBTSSolver}, problem::Union{POMDP,MDP}, s)
     policy = solve(solver, problem)
     requirements_info(policy, s)
 end
 
-function POMDPs.requirements_info(policy::AbstractCMCTSPlanner, s)
+function POMDPs.requirements_info(policy::COTSPlanner, s)
     if !isequal(deepcopy(s), s)
         @warn("""
              isequal(deepcopy(s), s) returned false. Is isequal() defined correctly?

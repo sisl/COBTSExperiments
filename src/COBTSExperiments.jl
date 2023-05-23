@@ -27,10 +27,10 @@ import CPOMDPs: costs, costs_limit, n_costs, terminate
 using POMDPModels
 export 
     LightDarkNew, 
-    CLightDarkNew, 
-    zeroV_trueC,
-    Navigate,
-    GoToGoal
+    CLightDarkNew,
+    CNav, 
+    zeroV_trueC
+include("cpomdps/cnav.jl")
 include("cpomdps/clightdark.jl")
 
 #using RockSample
@@ -42,6 +42,12 @@ include("cpomdps/clightdark.jl")
 #include("cpomdps/cspillpoint.jl")
 
 #using RoombaPOMDPs ????
+
+# Policies
+export
+    Navigate,
+    GoToGoal
+include("policies.jl")
 
 # helpers
 export

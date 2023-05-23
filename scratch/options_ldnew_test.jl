@@ -1,4 +1,4 @@
-using Revise, COBTSExperiments, CPOMDPs, POMDPTools, Random, POMDPs
+using Revise, COBTSExperiments, CPOMDPs, POMDPTools, Random, POMDPs, Infiltrator
 
 cpomdp = CLightDarkNew(cost_budget=0.1)
 cmdp = UnderlyingCMDP(cpomdp)
