@@ -1,8 +1,7 @@
 ### Constrained Nav Problem. Similar to 
 ## Same as lightdark, but with a different action space, and constraints on going above 12
 
-import Base: ==, +, *, -
-using Distributions
+import Base: ==, +, *, -, rand
 
 """
     NavState
@@ -44,7 +43,7 @@ POMDPs.discount(p::CNav) = p.discount_factor
 POMDPs.isterminal(::CNav, act::Int64) = act == 0
 POMDPs.isterminal(::CNav, s::NavState) = s.status < 0
 POMDPs.actions(::CNav) = [-10, -5, -1, 0, 1, 5, 10]
-POMDPs.initialstate(::CNav) = NormalNavStateDist(2, 2, 0)
+POMDPs.initialstate(::CNav) = NavStateDist(2, 2, 0)
 
 function POMDPs.transition(p::CNav, s::NavState, a::Int)
     next_pos = s.y+a*p.step_size

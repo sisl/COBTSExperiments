@@ -2,6 +2,7 @@ using Revise, COBTSExperiments, CPOMDPs, POMDPTools, Random, POMDPs, Infiltrator
 
 cpomdp = CLightDarkNew(cost_budget=0.1)
 cmdp = UnderlyingCMDP(cpomdp)
+cmdp = CNav()
 rng=MersenneTwister(1234)
 
 struct RandomNonTermPolicy <: POMDPs.Policy
