@@ -26,7 +26,7 @@ terminate(nav::Navigate, s) = Deterministic((abs(s.y-nav.goal) <= 1))
 struct GoToGoal{P} <: LowLevelPolicy
     problem::P
 end
-terminate(p::GoToGoal, s) = Deterministic(POMDPs.isterminal(p,s))
+terminate(p::GoToGoal, s) = Deterministic(POMDPs.isterminal(p.problem,s))
 
 POMDPTools.action_info(nav::Navigate{P}, s::LightDark1DState) where {P<:UnderlyingCMDP{<:CLightDarkNew}} = navigate(nav.problem.cpomdp.pomdp, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
 
@@ -38,6 +38,6 @@ end
 
 POMDPTools.action_info(nav::Navigate{P}, s::NavState) where {P<:CNav} = navigate(nav.problem, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
 function POMDPTools.action_info(g2g::GoToGoal{P}, s::NavState) where {P<:CNav}
-    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem.cpomdp, s, 0.)
+    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem, s, 0.)
     return action, (;goal=0., distance=abs(s.y))
 end

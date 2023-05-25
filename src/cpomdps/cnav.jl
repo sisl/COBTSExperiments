@@ -36,7 +36,7 @@ rand(rng::AbstractRNG, d::NavStateDist) = NavState(0, d.target_hit, d.mean + ran
     movement_cost::Float64 = 1.
     cost_budget::Float64 = 0.5
     max_y::Float64 = 15.
-    nav_y::Float64 = 10.
+    nav_y::Float64 = 9.
 end
 
 POMDPs.discount(p::CNav) = p.discount_factor
@@ -56,7 +56,7 @@ function POMDPs.reward(p::CNav, s::NavState, a::Int)
     if s.status < 0
         return 0.0
     elseif a == 0
-        if abs(s.y) < 1 && s.target_hit
+        if abs(s.y) < 1 && s.target_hit == 1
             return p.correct_r
         else
             return p.incorrect_r
@@ -107,27 +107,30 @@ function zeroV_trueC(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.Part
 
 end
 
-function heuristicV(p::POMDP, s::ParticleFilters.ParticleCollection{S}) where {S<:NavState}
-    ys = [p.y for p in particles(s)]
-    m = Statistics.mean(ys)
-    sig = Statistics.std(ys)
-    V = 0
+function heuristicV(p::CNav, s::NavState, args...)
+    m = s.y
     γ = discount(p)
-    steps = 1
-    if sig > 1 # go to 10 first for two time steps
-        steps += ceil(abs(10-m)/5) + 2
+    steps=0
+    if s.target_hit==0 # go above p.nav_y
+        steps = ceil(abs(p.nav_y-m)/10) 
+        m += 10*steps 
     end
-    V += -sum([(γ^i)*p.movement_cost  for i in 0:steps-1]) + (γ^steps)*p.correct_r
-    return V
+    steps += n_steps(m, 0.)
+    V = -sum([(γ^i)*p.movement_cost  for i in 0:steps-1]) + (γ^steps)*p.correct_r
+    return V, trueC(p, s)
 
 end
 
-heuristicV(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollection{S}, 
-    args...) where {P<:CNav, S<:NavState} = return (heuristicV(p.cpomdp.pomdp, s), zeroV_trueC(p,s,args...)[2])
-
-heuristicV(p::POMDPTools.GenerativeBeliefMDP{P}, s::ParticleFilters.ParticleCollection{S}, 
-    args...) where {P<:CNav, S<:NavState} = return heuristicV(p.pomdp, s)
-
-            
+# number of steps to get from x to \pm 1 of goal in increments of 1, 5, 10
+function n_steps(x::Float64, goal::Float64)
+    steps = 0
+    x = abs(x-goal)
+    steps += Int(x ÷ 10)
+    x = (x % 10)
+    steps += Int(x ÷ 5)
+    x = (x % 5)
+    steps += Int(x ÷ 1)
+    return steps
+end
 
 

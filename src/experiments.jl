@@ -76,10 +76,9 @@ function run_cpomdp_simulation(p::CPOMDP, solver::Solver,
     hist, R, C, RC
 end
 
-function run_cmdp_simulation(p::CMDP, planner::Policy, max_steps=100;track_history::Bool=true, rng::Random.AbstractRNG=Random.GLOBAL_RNG)
+function run_cmdp_simulation(p::CMDP, planner::Policy, max_steps=100; track_history::Bool=true, rng::Random.AbstractRNG=Random.GLOBAL_RNG)
     R = 0
     C = zeros(n_costs(p))
-    RC = 0
     γ = 1
     hist = NamedTuple[]
     

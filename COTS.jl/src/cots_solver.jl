@@ -1,10 +1,10 @@
+dot(a::Vector,b::Vector) = sum(a .* b)
 
-
-function update!(p::COTSPlanner, s, option, a, new_option) 
+function CPOMDPs.update!(p::COTSPlanner, s, option, a, new_option) 
     p._running = option
     p._step_counter = new_option ? 0 : p.step_counter + 1
     step_cost = costs(p.mdp, s, a)
-    p.budget = (p.budget - step_cost) / discount(p.mdp)
+    p.budget = max.(eps(Float64), (p.budget - step_cost) / discount(p.mdp))
     return (;new_option = new_option, step_counter=p._step_counter, step_cost=step_cost)
 end
 
@@ -19,7 +19,7 @@ end
 Construct an COTS tree and choose the best option. Also output some information.
 """
 function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
-    local a::actiontype(p.mdp)
+    local a::LowLevelPolicy
     info = Dict{Symbol, Any}()
     try
         if isterminal(p.mdp, s)
@@ -33,18 +33,17 @@ function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
         if !(s isa S)
             s = convert(S,s)
         end
-        A = actiontype(p.mdp)
         if p.solver.keep_tree && p.tree !== nothing
             tree = p.tree
             if haskey(tree.s_lookup, s)
                 snode = tree.s_lookup[s]
             else
-                snode = insert_state_node!(tree, s, 0, true)
+                snode = insert_state_node!(tree, s, p.solver.depth, true)
             end
         else
-            tree = COTSTree{S,A}(p.solver.n_iterations)
+            tree = COTSTree{S}(p.solver.n_iterations)
             p.tree = tree
-            snode = insert_state_node!(tree, s, 0, p.solver.check_repeat_state)
+            snode = insert_state_node!(tree, s, p.solver.depth, p.solver.check_repeat_state)
         end
 
         # perform search for stochastic policy
@@ -61,7 +60,7 @@ function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
         a = tree.a_labels[rand(p.rng,policy)]
 
     catch ex
-        a = convert(actiontype(p.mdp), default_action(p.solver.default_action, p.mdp, s, ex))
+        a = default_action(p.solver.default_option, p.mdp, s, ex)
         info[:exception] = ex
     end
 
@@ -89,7 +88,7 @@ function search(p::COTSPlanner, snode::Int, info::Dict)
     
     for i = 1:p.solver.n_iterations
         nquery += 1
-        simulate(p, snode, p.solver.depth, p.solver.budget) # (not 100% sure we need to make a copy of the state here)
+        simulate(p, snode, p.solver.depth, p.budget) # (not 100% sure we need to make a copy of the state here)
         p.solver.show_progress ? next!(progress) : nothing
         if timer() - start_s >= p.solver.max_time
             p.solver.show_progress ? finish!(progress) : nothing
@@ -130,9 +129,7 @@ end
 """
 Return the reward for one iteration of COTS.
 """
-function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float32})
-    S = statetype(dpw.mdp)
-    A = actiontype(dpw.mdp)
+function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float64})
     sol = dpw.solver
     tree = dpw.tree
     s = tree.s_labels[snode]
@@ -146,7 +143,7 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float32})
     # action progressive widening
     if dpw.solver.enable_action_pw
         if length(tree.children[snode]) <= sol.k_action*tree.total_n[snode]^sol.alpha_action # criterion for new action generation
-            a = next_option(dpw.next_option, dpw.mdp, s, StateNode(tree, snode), budget) # action generation step
+            a = next_option(dpw.next_option, dpw.mdp, s, StateNode(tree, snode), budget) # option generation step
             if !sol.check_repeat_action || !haskey(tree.a_lookup, (snode, a))
                 n0 = init_N(sol.init_N, dpw.mdp, s, a)
                 q0 = init_Q(sol.init_Q, dpw.mdp, s, a)
@@ -158,7 +155,7 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float32})
             end
         end
     elseif isempty(tree.children[snode])
-        for a in actions(dpw.mdp, s)
+        for a in sol.options # assume fixed set of options that can begin from every state, fix with options(::OptionsPolicy, mdp, s)
             n0 = init_N(sol.init_N, dpw.mdp, s, a)
             q0 = init_Q(sol.init_Q, dpw.mdp, s, a)
             qc0 = init_Qc(sol.init_Qc, dpw.mdp, s, a)
@@ -173,17 +170,27 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float32})
 
     # state progressive widening
     new_node = false
+    num_steps = 1
     if (dpw.solver.enable_state_pw && tree.n_a_children[sanode] <= sol.k_state*tree.n[sanode]^sol.alpha_state) || tree.n_a_children[sanode] == 0
-        sp, r, c = @gen(:sp, :r, :c)(dpw.mdp, s, a, dpw.rng)
+        
+        # run option
+        sp, r, c = @gen(:sp, :r, :c)(dpw.mdp, s, first(action_info(a, s)), dpw.rng)
+        while !rand(dpw.rng, terminate(a, sp)) && d-num_steps >= 0
+            sp, r_add, c_add = @gen(:sp, :r, :c)(dpw.mdp, sp, first(action_info(a, sp)), dpw.rng)
+            r += r_add*discount(dpw.mdp)^num_steps
+            c += c_add*discount(dpw.mdp)^num_steps
+            num_steps += 1
+        end
 
+        # add result through tree
         if sol.check_repeat_state && haskey(tree.s_lookup, sp)
             spnode = tree.s_lookup[sp]
         else
-            spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
+            spnode = insert_state_node!(tree, sp, d-num_steps, sol.keep_tree || sol.check_repeat_state)
             new_node = true
         end
         
-        push!(tree.transitions[sanode], (spnode, r, c))
+        push!(tree.transitions[sanode], (spnode, r, c, num_steps))
 
         if !sol.check_repeat_state
             tree.n_a_children[sanode] += 1
@@ -192,31 +199,22 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float32})
             tree.n_a_children[sanode] += 1
         end
     else
-        spnode, r, c = rand(dpw.rng, tree.transitions[sanode])
+        spnode, r, c, num_steps = rand(dpw.rng, tree.transitions[sanode])
     end
 
     if new_node
-        v, cv = estimate_value(dpw.solved_estimate, dpw.mdp, sp, d-1)
+        v, cv = estimate_value(dpw.solved_estimate, dpw.mdp, sp, d-num_steps)
     else
-        v, cv = simulate(dpw, spnode, d-1)
+        new_budget = max.(eps(Float64), (budget-c) / discount(dpw.mdp)^num_steps)
+        v, cv = simulate(dpw, spnode, d-num_steps, new_budget)
     end
-    q = r + discount(dpw.mdp) * v
-    qc = c + discount(dpw.mdp) * cv 
+    q = r + discount(dpw.mdp)^num_steps * v
+    qc = c + discount(dpw.mdp)^num_steps * cv 
 
     tree.n[sanode] += 1
     tree.total_n[snode] += 1
     tree.q[sanode] += (q - tree.q[sanode])/tree.n[sanode]
     tree.qc[sanode] += (qc - tree.qc[sanode])/tree.n[sanode]
-
-    # top level cost estimator
-    if d == sol.depth
-        if !(sanode in keys(tree.top_level_costs))
-            tree.top_level_costs[sanode] = c
-        else
-            tree.top_level_costs[sanode] += (c-tree.top_level_costs[sanode])/tree.n[sanode]
-        end
-    end
-
     return q, qc
 end
 
@@ -231,11 +229,11 @@ function action_policy_UCB(t::COTSTree, s::Int, lambda::Vector{Float64}, c::Floa
     for node in t.children[s]
         n = t.n[node]
         if n == 0 && ltn <= 0.0
-            criterion_value = t.q[node] - lambda⋅t.qc[node]
+            criterion_value = t.q[node] - dot(lambda,t.qc[node])
         elseif n == 0 && t.q[node] == -Inf
             criterion_value = Inf
         else
-            criterion_value = t.q[node] - lambda⋅t.qc[node]
+            criterion_value = t.q[node] - dot(lambda,t.qc[node])
             if c > 0
                 criterion_value += c*sqrt(ltn/n)
             end
@@ -259,7 +257,7 @@ function action_policy_UCB(t::COTSTree, s::Int, lambda::Vector{Float64}, c::Floa
     
     # weigh actions
     if length(best_nodes) == 1
-        dist = Determistic(best_nodes)
+        dist = Deterministic(best_nodes[1])
     else
         dist = SparseCat(best_nodes,solve_lp(t, best_nodes))
     end

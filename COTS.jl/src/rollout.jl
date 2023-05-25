@@ -1,32 +1,8 @@
-mutable struct RolloutEstimator
-    solver::Union{Solver,Policy,Function} # rollout policy or solver
-    max_depth::Union{Int, Nothing}
-    eps::Union{Float64, Nothing}
-
-    function RolloutEstimator(solver::Union{Solver,Policy,Function};
-                              max_depth::Union{Int, Nothing}=50,
-                              eps::Union{Float64, Nothing}=nothing)
-        new(solver, max_depth, eps)
-    end
+function convert_estimator(ev::RolloutEstimator, solver::COTSSolver, mdp::Union{CPOMDP,CMDP})
+    return MCTS.SolvedRolloutEstimator(MCTS.convert_to_policy(ev.solver, mdp), solver.rng, ev.max_depth, ev.eps)
 end
 
-mutable struct SolvedRolloutEstimator{P<:Policy, RNG<:AbstractRNG}
-    policy::P
-    rng::RNG
-    max_depth::Union{Int, Nothing}
-    eps::Union{Float64, Nothing}
-end
-
-function convert_estimator(ev::RolloutEstimator, solver::AbstractCMCTSSolver, mdp::Union{CPOMDP,CMDP})
-    return SolvedRolloutEstimator(MCTS.convert_to_policy(ev.solver, mdp), solver.rng, ev.max_depth, ev.eps)
-end
-
-@POMDP_require estimate_value(estimator::SolvedRolloutEstimator, mdp::CMDP, state, remaining_depth) begin
-    sim = ConstrainedRolloutSimulator(rng=estimator.rng, max_steps=estimator.max_depth, eps=estimator.eps)
-    @subreq POMDPs.simulate(sim, mdp, estimator.policy, s)
-end
-
-function estimate_value(estimator::SolvedRolloutEstimator, mdp::CMDP, state, remaining_depth)
+function estimate_value(estimator::MCTS.SolvedRolloutEstimator, mdp::CMDP, state, remaining_depth)
     if estimator.max_depth == -1
         max_steps = remaining_depth
     else

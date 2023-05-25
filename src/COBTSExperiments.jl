@@ -60,6 +60,7 @@ export
     std,
     zero_V,
     QMDP_V,
+    heuristicV,
     SearchProgress,
     max_clip
 include("utils.jl") 

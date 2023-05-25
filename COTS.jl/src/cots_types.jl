@@ -141,7 +141,7 @@ Fields:
     init_λ::Union{Nothing,Vector{Float64}} = nothing
     max_clip::Union{Float64,Vector{Float64}} = Inf
     next_action::Any = RandomOptionGenerator(rng, options, enable_constraint_pw)
-    default_action::Any = ExceptionRethrow()
+    default_option::Any = ExceptionRethrow()
     reset_callback::Function = (mdp, s) -> false
     show_progress::Bool = false
     timer::Function = () -> 1e-9 * time_ns()
@@ -167,7 +167,7 @@ mutable struct DPWStateNode{S,A} <: AbstractStateNode
     DPWStateNode{S,A}() where {S,A} = new(Dict{A,DPWStateActionNode{S}}(),0)
 end
 =#
-mutable struct COTSTree{S,A}
+mutable struct COTSTree{S}
     # for each state node
     total_n::Vector{Int}
     children::Vector{Vector{Int}}
@@ -179,15 +179,15 @@ mutable struct COTSTree{S,A}
     n::Vector{Int}
     q::Vector{Float64}
     qc::Vector{Vector{Float64}}
-    transitions::Vector{Vector{Tuple{Int,Float64,Vector{Float64}}}}
-    a_labels::Vector{A}
-    a_lookup::Dict{Tuple{Int,A}, Int}
+    transitions::Vector{Vector{Tuple{Int,Float64,Vector{Float64},Int}}}
+    a_labels::Vector{LowLevelPolicy}
+    a_lookup::Dict{Tuple{Int,LowLevelPolicy}, Int}
 
     # for tracking transitions
     n_a_children::Vector{Int}
     unique_transitions::Set{Tuple{Int,Int}}
 
-    function COTSTree{S,A}(sz::Int=1000) where {S,A} 
+    function COTSTree{S}(sz::Int=1000) where {S} 
         sz = min(sz, 100_000)
         return new(sizehint!(Int[], sz),
                    sizehint!(Vector{Int}[], sz),
@@ -199,8 +199,8 @@ mutable struct COTSTree{S,A}
                    sizehint!(Float64[], sz),
                    sizehint!(Vector{Vector{Float64}}[], sz), #qc
                    sizehint!(Vector{Tuple{Int,Float64,Vector{Float64}}}[], sz),
-                   sizehint!(A[], sz),
-                   Dict{Tuple{Int,A}, Int}(),
+                   sizehint!(LowLevelPolicy[], sz),
+                   Dict{Tuple{Int,LowLevelPolicy}, Int}(),
 
                    sizehint!(Int[], sz),
                    Set{Tuple{Int,Int}}(),
@@ -209,7 +209,7 @@ mutable struct COTSTree{S,A}
 end
 
 
-function insert_state_node!(tree::COTSTree{S,A}, s::S, depth::Int, maintain_s_lookup=true) where {S,A}
+function insert_state_node!(tree::COTSTree{S}, s::S, depth::Int, maintain_s_lookup=true) where {S}
     push!(tree.total_n, 0)
     push!(tree.children, Int[])
     push!(tree.s_labels, s)
@@ -222,8 +222,8 @@ function insert_state_node!(tree::COTSTree{S,A}, s::S, depth::Int, maintain_s_lo
 end
 
 
-function insert_action_node!(tree::COTSTree{S,A}, snode::Int, a::A, n0::Int, q0::Float64, qc0::Vector{Float64}, 
-        maintain_a_lookup=true) where {S,A}
+function insert_action_node!(tree::COTSTree{S}, snode::Int, a::LowLevelPolicy, n0::Int, q0::Float64, qc0::Vector{Float64}, 
+        maintain_a_lookup=true) where {S}
     push!(tree.n, n0)
     push!(tree.q, q0)
     push!(tree.qc, qc0)
@@ -241,8 +241,8 @@ end
 
 Base.isempty(tree::COTSTree) = isempty(tree.n) && isempty(tree.q)
 
-struct COTSStateNode{S,A} <: AbstractStateNode
-    tree::COTSTree{S,A}
+struct COTSStateNode{S} <: AbstractStateNode
+    tree::COTSTree{S}
     index::Int
 end
 
@@ -251,10 +251,10 @@ n_children(n::COTSStateNode) = length(children(n))
 isroot(n::COTSStateNode) = n.index == 1
 
 
-mutable struct COTSPlanner{P<:Union{MDP,POMDP}, S, A, SE, NA, RCB, RNG} <: OptionsPolicy
+mutable struct COTSPlanner{P<:Union{CMDP,CPOMDP}, S, A, SE, NA, RCB, RNG} <: OptionsPolicy
     solver::COTSSolver
     mdp::P
-    tree::Union{Nothing, COTSTree{S,A}}
+    tree::Union{Nothing, COTSTree{S}}
     solved_estimate::SE
     next_action::NA
     reset_callback::RCB
@@ -293,10 +293,9 @@ function COTSPlanner(solver::COTSSolver, mdp::P) where P<:Union{CPOMDP,CMDP}
 
                                           #cpomdp parameters
                                           costs_limit(mdp),
-                                          nothing, 
                      )
 end
-rng(p::COTSPlanner) = p.rng
-low_level(p::COTSPlanner) = p._running
+CPOMDPs.rng(p::COTSPlanner) = p.rng
+CPOMDPs.low_level(p::COTSPlanner) = p._running
 Random.seed!(p::COTSPlanner, seed) = Random.seed!(p.rng, seed)
-POMDPs.solve(solver::COTSSolver, mdp::Union{POMDP,MDP}) = COTSPlanner(solver, mdp)
+POMDPs.solve(solver::COTSSolver, mdp::Union{CPOMDP,CMDP}) = COTSPlanner(solver, mdp)
