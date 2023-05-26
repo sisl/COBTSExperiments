@@ -2,7 +2,7 @@ dot(a::Vector,b::Vector) = sum(a .* b)
 
 function CPOMDPs.update!(p::COTSPlanner, s, option, a, new_option) 
     p._running = option
-    p._step_counter = new_option ? 0 : p.step_counter + 1
+    p._step_counter = new_option ? 0 : p._step_counter + 1
     step_cost = costs(p.mdp, s, a)
     p.budget = max.(eps(Float64), (p.budget - step_cost) / discount(p.mdp))
     return (;new_option = new_option, step_counter=p._step_counter, step_cost=step_cost)
@@ -38,12 +38,12 @@ function CPOMDPs.select_option(p::COTSPlanner, s; tree_in_info=false)
             if haskey(tree.s_lookup, s)
                 snode = tree.s_lookup[s]
             else
-                snode = insert_state_node!(tree, s, p.solver.depth, true)
+                snode = insert_state_node!(tree, s, true)
             end
         else
             tree = COTSTree{S}(p.solver.n_iterations)
             p.tree = tree
-            snode = insert_state_node!(tree, s, p.solver.depth, p.solver.check_repeat_state)
+            snode = insert_state_node!(tree, s, p.solver.check_repeat_state)
         end
 
         # perform search for stochastic policy
@@ -186,7 +186,7 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float64})
         if sol.check_repeat_state && haskey(tree.s_lookup, sp)
             spnode = tree.s_lookup[sp]
         else
-            spnode = insert_state_node!(tree, sp, d-num_steps, sol.keep_tree || sol.check_repeat_state)
+            spnode = insert_state_node!(tree, sp, sol.keep_tree || sol.check_repeat_state)
             new_node = true
         end
         

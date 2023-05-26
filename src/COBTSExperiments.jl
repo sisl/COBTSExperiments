@@ -18,6 +18,7 @@ using POMDPTools
 
 using CPOMDPs
 import CPOMDPs: costs, costs_limit, n_costs, terminate
+import MCTS: node_tag
 
 # constrained solvers
 # using CMCTS
@@ -46,6 +47,7 @@ include("cpomdps/clightdark.jl")
 # Policies
 export
     Navigate,
+    NavigateSlow,
     GoToGoal
 include("policies.jl")
 

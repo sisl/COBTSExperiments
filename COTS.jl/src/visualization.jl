@@ -109,7 +109,7 @@ end
 #     return D3Tree(nodes; title=title, kwargs...)
 # end
 
-function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
+function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", lambda=nothing, kwargs...)
     lens = length(tree.total_n)
     lensa = length(tree.n)
     len = lens + lensa
@@ -120,7 +120,7 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
     link_style = fill("", len)
     max_q = maximum(tree.q)
     min_q = minimum(tree.q)
-
+    depth = generate_depths(tree)
     for s in 1:lens
         children[s] = tree.children[s] .+ lens
         text[s] =  @sprintf("""
@@ -133,7 +133,9 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
         tt[s] = """
                 $(tooltip_tag(tree.s_labels[s]))
                 N: $(tree.total_n[s])
+                d: $(depth[s])
                 """
+        lambda !== nothing && s==1 && (tt[s] *= """λ: $(lambda)""")
         for sa in tree.children[s]
             w = 20.0*sqrt(tree.n[sa]/tree.total_n[s])
             link_style[sa+lens] = "stroke-width:$(w)px"
@@ -153,10 +155,12 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
         text[sa+lens] = @sprintf("""
                                  %25s
                                  Q: %6.2f
+                                 Qc: %20s
                                  N: %6d
                                  """,
                                  node_tag(tree.a_labels[sa]),
                                  tree.q[sa],
+                                 tree.qc[sa],
                                  tree.n[sa]
                                 )
         tt[sa+lens] = """
@@ -164,8 +168,8 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
                       Q: $(tree.q[sa])
                       N: $(tree.n[sa])
                       C: $(tree.qc[sa])
-                      d: $(tree.depth[sa])
                       """
+        lambda !== nothing && (tt[sa+lens] *= """Qλ: $(tree.q[sa] .- dot(lambda,tree.qc[sa]))""")
 
         rel_q = (tree.q[sa]-min_q)/(max_q-min_q)
         if isnan(rel_q)
@@ -183,4 +187,24 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", kwargs...)
                   title=title,
                   kwargs...
                  )
+end
+
+
+function generate_depths(tree::COTSTree)
+    lens = length(tree.total_n)
+    lensa = length(tree.n)
+    len = lens + lensa
+    depth = ones(Int,len)
+    for s = 1:lens
+        for sa = tree.children[s]
+            depth[sa+lens] = 0
+            trans = tree.transitions[sa]
+            sps = first.(trans)
+            num_steps = last.(trans)
+            for (sp, ns) in zip(sps,num_steps)
+                (depth[sp] == 1) && (depth[sp] = depth[s] + ns) # only update depth the first time.
+            end
+        end
+    end
+    return depth
 end

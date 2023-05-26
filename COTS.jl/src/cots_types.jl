@@ -173,7 +173,6 @@ mutable struct COTSTree{S}
     children::Vector{Vector{Int}}
     s_labels::Vector{S}
     s_lookup::Dict{S, Int}
-    depth::Vector{Int} # depth of each state node
 
     # for each state-action node
     n::Vector{Int}
@@ -193,7 +192,6 @@ mutable struct COTSTree{S}
                    sizehint!(Vector{Int}[], sz),
                    sizehint!(S[], sz),
                    Dict{S, Int}(),
-                   sizehint!(Int[], sz), #depth
 
                    sizehint!(Int[], sz),
                    sizehint!(Float64[], sz),
@@ -209,11 +207,10 @@ mutable struct COTSTree{S}
 end
 
 
-function insert_state_node!(tree::COTSTree{S}, s::S, depth::Int, maintain_s_lookup=true) where {S}
+function insert_state_node!(tree::COTSTree{S}, s::S, maintain_s_lookup=true) where {S}
     push!(tree.total_n, 0)
     push!(tree.children, Int[])
     push!(tree.s_labels, s)
-    push!(tree.depth, depth)
     snode = length(tree.total_n)
     if maintain_s_lookup
         tree.s_lookup[s] = snode

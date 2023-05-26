@@ -3,77 +3,68 @@
 mutable struct LightExperimentResults
     Rs::Vector{Float64}
     Cs::Vector{Vector{Float64}}
-    RCs::Vector{Float64}
 end
 
 LightExperimentResults(num::Int) = LightExperimentResults(
     Array{Float64}(undef,num),
     Array{Vector{Float64}}(undef,num),
-    Array{Float64}(undef,num),
     )
 
-Base.getindex(X::LightExperimentResults, i::Int)	= (X.Rs[i],X.Cs[i],X.RCs[i])
+Base.getindex(X::LightExperimentResults, i::Int)	= (X.Rs[i],X.Cs[i])
 
-function Base.setindex!(X::LightExperimentResults, v::Tuple{Vector{NamedTuple},Float64,Vector{Float64},Float64}, i::Int)
+function Base.setindex!(X::LightExperimentResults, v::Tuple{Vector{NamedTuple},Float64,Vector{Float64}}, i::Int)
     X.Rs[i] = v[2]
     X.Cs[i] = v[3]
-    X.RCs[i] = v[4]
 end
 
 mutable struct ExperimentResults
     hists::Vector{Vector{NamedTuple}}
     Rs::Vector{Float64}
     Cs::Vector{Vector{Float64}}
-    RCs::Vector{Float64}
 end
 
 ExperimentResults(num::Int) = ExperimentResults(
     Array{Vector{NamedTuple}}(undef,num),
     Array{Float64}(undef,num),
     Array{Vector{Float64}}(undef,num),
-    Array{Float64}(undef,num),
     )
 
-Base.getindex(X::ExperimentResults, i::Int)	= (X.hists[i],X.Rs[i],X.Cs[i],X.RCs[i])
+Base.getindex(X::ExperimentResults, i::Int)	= (X.hists[i],X.Rs[i],X.Cs[i])
 
-function Base.setindex!(X::ExperimentResults, v::Tuple{Vector{NamedTuple},Float64,Vector{Float64},Float64}, i::Int)
+function Base.setindex!(X::ExperimentResults, v::Tuple{Vector{NamedTuple},Float64,Vector{Float64}}, i::Int)
     X.hists[i] = v[1]
     X.Rs[i] = v[2]
     X.Cs[i] = v[3]
-    X.RCs[i] = v[4]
 end
 
-mean(er::Union{LightExperimentResults,ExperimentResults}) = Statistics.mean(er.Rs), Statistics.mean(er.Cs), Statistics.mean(er.RCs)
+mean(er::Union{LightExperimentResults,ExperimentResults}) = Statistics.mean(er.Rs), Statistics.mean(er.Cs)
 
 function std(er::Union{LightExperimentResults,ExperimentResults};corrected::Bool=false)
     stdR = Statistics.std(er.Rs;corrected=corrected)
     stdC = Statistics.std(er.Cs;corrected=corrected)
-    stdRC = Statistics.std(er.RCs;corrected=corrected)
-    return stdR, stdC, stdRC
+    return stdR, stdC
 end
 
 function print_and_save(er::Union{LightExperimentResults,ExperimentResults}, fileloc::String)
     l = length(er.Rs)
-    mR, mC, mRC = mean(er)
-    stdR, stdC, stdRC = std(er)
-    println("R: $(mR) pm $(stdR ./ l)")
-    println("C: $(mC) pm $(stdC ./ l)")
-    println("RC: $(mRC) pm $(stdRC ./ l)")
-    d = Dict(
-        "R"=>er.Rs, "C"=> er.Cs, "RCs"=>er.RCs
-    )
+    mR, mC = mean(er)
+    stdR, stdC = std(er)
+    println("R: $(mR) pm $(stdR ./ sqrt(l))")
+    println("C: $(mC) pm $(stdC ./ sqrt(l))")
+    d = Dict("R"=>er.Rs, "C"=> er.Cs)
+    dir = dirname(fileloc)
+    !(isdir(dir)) && mkpath(dir)
     FileIO.save(fileloc,d)
 end
 
 function load_and_print(fileloc::String)
     d = load(fileloc)
-    er = LightExperimentResults(d["R"], d["C"], d["RCs"])
+    er = LightExperimentResults(d["R"], d["C"])
     l = length(er.Rs)
-    mR, mC, mRC = mean(er)
-    stdR, stdC, stdRC = std(er)
-    println("R: $(mR) pm $(stdR ./ l)")
-    println("C: $(mC) pm $(stdC ./ l)")
-    println("RC: $(mRC) pm $(stdRC ./ l)")
+    mR, mC = mean(er)
+    stdR, stdC = std(er)
+    println("R: $(mR) pm $(stdR ./ sqrt(l))")
+    println("C: $(mC) pm $(stdC ./ sqrt(l))")
     return er
 end
 

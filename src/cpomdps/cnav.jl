@@ -1,7 +1,7 @@
 ### Constrained Nav Problem. Similar to 
 ## Same as lightdark, but with a different action space, and constraints on going above 12
 
-import Base: ==, +, *, -, rand
+import Base: ==, +, *, -, rand, show
 
 """
     NavState
@@ -15,7 +15,7 @@ struct NavState
     target_hit::Int64
     y::Float64
 end
-
+node_tag(p::NavState) = "NavState($(p.status), $(p.target_hit), $(p.y))"
 *(n::Number, s::NavState) = NavState(s.status, s.target_hit, n*s.y)
 
 struct NavStateDist
@@ -35,8 +35,8 @@ rand(rng::AbstractRNG, d::NavStateDist) = NavState(0, d.target_hit, d.mean + ran
     step_size::Float64 = 1. 
     movement_cost::Float64 = 1.
     cost_budget::Float64 = 0.5
-    max_y::Float64 = 15.
-    nav_y::Float64 = 9.
+    max_y::Float64 = 21.
+    nav_y::Float64 = 20.
 end
 
 POMDPs.discount(p::CNav) = p.discount_factor

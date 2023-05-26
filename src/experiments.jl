@@ -39,7 +39,9 @@ function get_tree(planner)
 end
 
 function run_cpomdp_simulation(p::CPOMDP, solver::Solver, 
-    bu::Union{Nothing,Updater,Function}=nothing, max_steps=100;track_history::Bool=true)
+    bu::Union{Nothing,Updater,Function}=nothing, max_steps=100;
+    track_history::Bool=true, rng::Random.AbstractRNG=Random.GLOBAL_RNG)
+    
     planner = solve(solver, p.cpomdp)
     if bu===nothing
         bu = POMDPs.updater(planner)
@@ -48,32 +50,23 @@ function run_cpomdp_simulation(p::CPOMDP, solver::Solver,
     end
     R = 0
     C = zeros(n_costs(p.cpomdp))
-    RC = 0
     γ = 1
     hist = NamedTuple[]
     
-    for (s, a, o, r, c, sp, b, ai) in stepthrough(p.cpomdp, planner, bu, "s,a,o,r,c,sp,b,action_info", max_steps=max_steps)
+    for (s, a, o, r, c, sp, b, ai) in stepthrough(p.cpomdp, planner, bu, "s,a,o,r,c,sp,b,action_info", max_steps=max_steps; rng=rng)
         
         # track fictitions augmented reward
-        rc = r - p.λ⋅c
         
         R += r*γ
         C .+= c.*γ
-        RC += rc*γ 
 
         γ *= discount(p)
         if track_history
-            push!(hist, (;s, a, o, r, c, rc, sp, b, 
-                tree = :tree in keys(ai) ? ai[:tree] : nothing,
-                lambda = :lambda in keys(ai) ? ai[:lambda] : nothing,
-                v_best = :v_best in keys(ai) ? ai[:v_best] : nothing,
-                cv_best = :cv_best in keys(ai) ? ai[:cv_best] : nothing,
-                v_taken = :v_taken in keys(ai) ? ai[:v_taken] : nothing,
-                cv_taken = :cv_taken in keys(ai) ? ai[:cv_taken] : nothing,
-                ))
+            si = :select in keys(ai) ? ai[:select] : ai
+            push!(hist, merge((;s, a, o, r, c, sp, b, ai), search_info(si))) 
         end
     end
-    hist, R, C, RC
+    hist, R, C
 end
 
 function run_cmdp_simulation(p::CMDP, planner::Policy, max_steps=100; track_history::Bool=true, rng::Random.AbstractRNG=Random.GLOBAL_RNG)
@@ -88,8 +81,15 @@ function run_cmdp_simulation(p::CMDP, planner::Policy, max_steps=100; track_hist
 
         γ *= discount(p)
         if track_history
-            push!(hist, (;s, a, r, c, sp, ai))
+            si = :select in keys(ai) ? ai[:select] : ai
+            push!(hist, merge((;s, a, r, c, sp, ai), search_info(si))) 
         end
     end
     hist, R, C
+end
+
+function search_info(si) 
+    add_keys = (:tree, :lambda, :v_best, :cv_best, :v_taken, :cv_taken)
+    si_keys = keys(si)
+    NamedTuple{add_keys}([k in si_keys ? si[k] : nothing for k in add_keys])
 end
