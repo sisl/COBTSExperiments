@@ -2,7 +2,6 @@
 ## Same as lightdark, but with a different action space, and constraints on going above 12
 
 import Base: ==, +, *, -
-using Distributions
 
 mutable struct LightDarkNew{F<:Function} <: POMDPs.POMDP{LightDark1DState,Int,Float64}
     discount_factor::Float64
@@ -49,8 +48,6 @@ end
 POMDPs.convert_s(::Type{A}, s::LightDark1DState, p::LightDarkNew) where A<:AbstractArray = eltype(A)[s.status, s.y]
 POMDPs.convert_s(::Type{LightDark1DState}, s::A, p::LightDarkNew) where A<:AbstractArray = LightDark1DState(Int64(s[1]), s[2])
 
-
-
 ## CPOMDP
 
 struct LightDarkCPOMDP{P<:LightDarkNew,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
@@ -63,7 +60,7 @@ function LightDarkCPOMDP(;pomdp::P=LightDarkNew(),
     cost_budget::Float64=0.5,
     max_y::Float64=12.,
     ) where {P<:LightDarkNew}
-    return CLightDarkNew{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp,cost_budget,max_y)
+    return LightDarkCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp,cost_budget,max_y)
 end
 
 costs(p::LightDarkCPOMDP, s::LightDark1DState, a::Int) = Float64[s.y >= p.max_y]

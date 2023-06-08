@@ -1,12 +1,16 @@
 ### Navigation CMDP Low Level Policies
 
+get_step_size(p::Union{LightDarkNew,CNav}) = p.step_size
+get_step_size(p::LightDarkCPOMDP) = p.pomdp.step_size
+
 # navigate
 function navigate(problem::Union{LightDarkCPOMDP,LightDarkNew,CNav}, y::Float64, goal::Float64) 
     action = 0
     best_dist = Inf
+    step_size = get_step_size(problem)
     for a in actions(problem)
         (a ≈ 0) && continue
-        dist = abs(y+a*problem.step_size-goal)
+        dist = abs(y+a*step_size-goal)
         if dist < best_dist
             best_dist = dist
             action = a
@@ -19,9 +23,10 @@ function navigate_slow(problem::Union{LightDarkCPOMDP,LightDarkNew,CNav}, y::Flo
     above = y > goal
     action = 0
     best_dist = Inf
+    step_size = get_step_size(problem)
     for a in actions(problem)
         (a ≈ 0) && continue
-        offset = y+a*problem.step_size-goal
+        offset = y+a*step_size-goal
         new_above = offset > 0
         ((above && !new_above) || (!above && new_above)) && continue
         dist = abs(offset)
@@ -80,11 +85,15 @@ function statistics(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) w
     ws /= sum(ws)
     ys = [s.y for s in particles(b)]
     m = dot(ws, ys)
-    diffs = ys - m
+    diffs = ys .- m
     var = dot(ws, diffs.^2)  
     return m, sqrt(var)
 end
 
+function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:LightDark1DState}
+    y, std = statistics(b)
+    return @sprintf "LightDarkParticles(%.3f±%.3f)" y std
+end
 
 """
 GoToGoal policy navigates the particle mean to the goal and terminates
@@ -144,7 +153,7 @@ function POMDPTools.action_info(p::LocalizeSafe, b)
     best_dist = Inf
     for a in as
         (a ≈ 0.) && continue
-        if (y + a) < (p.cliff - p.α*std)
+        if (y + a) < (p.max_y - p.α*std)
             dist = abs(p.goal - y - a)
             if dist < best_dist
                 best_dist = dist
@@ -155,7 +164,7 @@ function POMDPTools.action_info(p::LocalizeSafe, b)
     return action, (;goal=p.goal, distance=abs(y-p.goal), std=std)
 end
 terminate(p::LocalizeSafe, b) = Deterministic((last(statistics(b)) <= p.max_std))
-node_tag(p::LocalizeSafe) = "LocalizeSafe($(alpha),$(p.max_std))"
+node_tag(p::LocalizeSafe) = "LocalizeSafe($(p.α),$(p.max_std))"
 
-
+#CPOMDPs.gbmdp_handle_terminal(pomdp::LightDarkCPOMDP, updater::Updater, b, s, a, rng) = b # dont update terminal beliefs (should just return 0 reward)
 

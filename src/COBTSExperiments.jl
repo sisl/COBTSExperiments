@@ -12,6 +12,8 @@ import Statistics
 using Random
 using Distributed
 using FileIO
+using Distributions
+using Printf
 
 using POMDPs
 using POMDPTools
@@ -48,7 +50,10 @@ include("cpomdps/clightdark.jl")
 export
     Navigate,
     NavigateSlow,
-    GoToGoal
+    GoToGoal,
+    LocalizeFast,
+    LocalizeSlow,
+    LocalizeSafe
 include("policies.jl")
 
 # helpers

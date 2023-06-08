@@ -48,11 +48,11 @@ function run_cpomdp_simulation(p::CPOMDP, planner::Policy,
         updater = updater(planner)
     end
     R = 0
-    C = zeros(n_costs(p.cpomdp))
+    C = zeros(n_costs(p))
     γ = 1
     hist = NamedTuple[]
     
-    for (s, a, o, r, c, sp, b, ai) in stepthrough(p.cpomdp, planner, updater, "s,a,o,r,c,sp,b,action_info", max_steps=max_steps; rng=rng)
+    for (s, a, o, r, c, sp, b, ai) in stepthrough(p, planner, updater, "s,a,o,r,c,sp,b,action_info", max_steps=max_steps; rng=rng)
         
         # track fictitions augmented reward
         
