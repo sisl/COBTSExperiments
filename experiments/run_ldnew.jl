@@ -1,13 +1,12 @@
-using CPOMCPPlusExperiments
-using Infiltrator
-using ProgressMeter
-using Distributed
+using COBTSExperiments
+using COTS 
+using CMCTS
 using Random
-
+using ProgressMeter
 nsims = 100
 run = [true, true, true] #(pomcpow, pomcp, pft-dpw)
 
-cpomdp = SoftConstraintPOMDPWrapper(CLightDarkNew(cost_budget=0.1);λ=[1.])
+cpomdp = LightDarkCPOMDP(cost_budget=0.1)
 
 # global parameters
 tree_queries = Int(1e5)

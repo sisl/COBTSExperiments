@@ -38,22 +38,21 @@ function get_tree(planner)
     end
 end
 
-function run_cpomdp_simulation(p::CPOMDP, solver::Solver, 
-    bu::Union{Nothing,Updater,Function}=nothing, max_steps=100;
+function run_cpomdp_simulation(p::CPOMDP, planner::Policy, 
+    updater::Union{Nothing,Updater,Function}=nothing, max_steps=100;
     track_history::Bool=true, rng::Random.AbstractRNG=Random.GLOBAL_RNG)
     
-    planner = solve(solver, p.cpomdp)
-    if bu===nothing
-        bu = POMDPs.updater(planner)
-    elseif bu isa Function
-        bu = bu(planner)
+    if updater===nothing
+        updater = POMDPs.updater(planner)
+    elseif updater isa Function
+        updater = updater(planner)
     end
     R = 0
     C = zeros(n_costs(p.cpomdp))
     γ = 1
     hist = NamedTuple[]
     
-    for (s, a, o, r, c, sp, b, ai) in stepthrough(p.cpomdp, planner, bu, "s,a,o,r,c,sp,b,action_info", max_steps=max_steps; rng=rng)
+    for (s, a, o, r, c, sp, b, ai) in stepthrough(p.cpomdp, planner, updater, "s,a,o,r,c,sp,b,action_info", max_steps=max_steps; rng=rng)
         
         # track fictitions augmented reward
         

@@ -28,7 +28,7 @@ import MCTS: node_tag
 using POMDPModels
 export 
     LightDarkNew, 
-    CLightDarkNew,
+    LightDarkCPOMDP,
     CNav, 
     zeroV_trueC
 include("cpomdps/cnav.jl")

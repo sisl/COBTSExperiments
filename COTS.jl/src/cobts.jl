@@ -38,6 +38,8 @@ function updater(p::COTSPlanner)
     return p.mdp.updater
 end
 
+# when CPOMDPs.update! is called using a GenerativeBeliefCMDP, should update costs appropriately
+
 #=
 """
     COTSBudgetUpdateWrapper(updater::Updater, planner::COTSPlanner)

@@ -53,24 +53,24 @@ POMDPs.convert_s(::Type{LightDark1DState}, s::A, p::LightDarkNew) where A<:Abstr
 
 ## CPOMDP
 
-struct CLightDarkNew{P<:LightDarkNew,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
+struct LightDarkCPOMDP{P<:LightDarkNew,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
     pomdp::P 
     cost_budget::Float64
     max_y::Float64
 end
 
-function CLightDarkNew(;pomdp::P=LightDarkNew(),
+function LightDarkCPOMDP(;pomdp::P=LightDarkNew(),
     cost_budget::Float64=0.5,
     max_y::Float64=12.,
     ) where {P<:LightDarkNew}
     return CLightDarkNew{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp,cost_budget,max_y)
 end
 
-costs(p::CLightDarkNew, s::LightDark1DState, a::Int) = Float64[s.y >= p.max_y]
-costs_limit(p::CLightDarkNew) = [p.cost_budget]
-n_costs(::CLightDarkNew) = 1
-max_reward(p::CLightDarkNew) = p.pomdp.correct_r
-min_reward(p::CLightDarkNew) = -p.pomdp.movement_cost
+costs(p::LightDarkCPOMDP, s::LightDark1DState, a::Int) = Float64[s.y >= p.max_y]
+costs_limit(p::LightDarkCPOMDP) = [p.cost_budget]
+n_costs(::LightDarkCPOMDP) = 1
+max_reward(p::LightDarkCPOMDP) = p.pomdp.correct_r
+min_reward(p::LightDarkCPOMDP) = -p.pomdp.movement_cost
 
 function QMDP_V(p::LightDarkNew, s::LightDark1DState, args...) 
     y = abs(s.y)
@@ -80,7 +80,7 @@ function QMDP_V(p::LightDarkNew, s::LightDark1DState, args...)
     return -sum([(γ^i)*p.movement_cost  for i in 0:steps-1]) + (γ^steps)*p.correct_r 
 end
 
-function QMDP_V(p::CLightDarkNew, s::LightDark1DState, args...)
+function QMDP_V(p::LightDarkCPOMDP, s::LightDark1DState, args...)
     V = QMDP_V(p.pomdp,s,args...)
     γ = discount(p)
     steps = floor(Int, (s.y+10-p.max_y)/10)
@@ -88,16 +88,16 @@ function QMDP_V(p::CLightDarkNew, s::LightDark1DState, args...)
     return (V, [C])
 end
 
-function trueC(p::CLightDarkNew, s::LightDark1DState)
+function trueC(p::LightDarkCPOMDP, s::LightDark1DState)
     γ = discount(p)
     steps = floor(Int, (s.y+10-p.max_y)/10)
     C = sum([γ^i for i in 0:steps-1])
     return [C]
 end
 
-zeroV_trueC(p::CLightDarkNew, s::LightDark1DState, args...) = (0, trueC(p,s))
+zeroV_trueC(p::LightDarkCPOMDP, s::LightDark1DState, args...) = (0, trueC(p,s))
 
-function zeroV_trueC(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollection{S}, args...) where {P<:CLightDarkNew, S<:LightDark1DState}
+function zeroV_trueC(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollection{S}, args...) where {P<:LightDarkCPOMDP, S<:LightDark1DState}
     C = [0.]
     ws = weights(s)
     for (part, w) in zip(particles(s),ws)
@@ -124,8 +124,8 @@ function heuristicV(p::POMDP, s::ParticleFilters.ParticleCollection{S}) where {S
 end
 
 heuristicV(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollection{S}, 
-    args...) where {P<:CLightDarkNew, S<:LightDark1DState} = return (heuristicV(p.cpomdp.pomdp, s), zeroV_trueC(p,s,args...)[2])
+    args...) where {P<:LightDarkCPOMDP, S<:LightDark1DState} = return (heuristicV(p.cpomdp.pomdp, s), zeroV_trueC(p,s,args...)[2])
 
 heuristicV(p::POMDPTools.GenerativeBeliefMDP{P}, s::ParticleFilters.ParticleCollection{S}, 
-    args...) where {P<:LightDarkNew, S<:LightDark1DState} = return heuristicV(p.pomdp, s)
+    args...) where {P<:LightDarkCPOMDP, S<:LightDark1DState} = return heuristicV(p.pomdp, s)
 

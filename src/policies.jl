@@ -1,12 +1,12 @@
 ### Navigation CMDP Low Level Policies
 
 # navigate
-function navigate(problem::Union{LightDarkNew,CNav}, s::Union{LightDark1DState,NavState}, goal::Float64) 
+function navigate(problem::Union{LightDarkCPOMDP,LightDarkNew,CNav}, y::Float64, goal::Float64) 
     action = 0
     best_dist = Inf
     for a in actions(problem)
         (a ≈ 0) && continue
-        dist = abs(s.y+a*problem.step_size-goal)
+        dist = abs(y+a*problem.step_size-goal)
         if dist < best_dist
             best_dist = dist
             action = a
@@ -15,13 +15,13 @@ function navigate(problem::Union{LightDarkNew,CNav}, s::Union{LightDark1DState,N
     return action
 end
 
-function navigate_slow(problem::Union{LightDarkNew,CNav}, s::Union{LightDark1DState,NavState}, goal::Float64) 
-    above = s.y > goal
+function navigate_slow(problem::Union{LightDarkCPOMDP,LightDarkNew,CNav}, y::Float64, goal::Float64) 
+    above = y > goal
     action = 0
     best_dist = Inf
     for a in actions(problem)
         (a ≈ 0) && continue
-        offset = s.y+a*problem.step_size-goal
+        offset = y+a*problem.step_size-goal
         new_above = offset > 0
         ((above && !new_above) || (!above && new_above)) && continue
         dist = abs(offset)
@@ -58,16 +58,104 @@ end
 terminate(p::GoToGoal, s) = Deterministic(POMDPs.isterminal(p.problem,s))
 node_tag(::GoToGoal) = "GoToGoal"
 
-POMDPTools.action_info(nav::Navigate{P}, s::LightDark1DState) where {P<:UnderlyingCMDP{<:CLightDarkNew}} = navigate(nav.problem.cpomdp.pomdp, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
-
-function POMDPTools.action_info(g2g::GoToGoal{P}, s::LightDark1DState) where {P<:UnderlyingCMDP{<:CLightDarkNew}}
-    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem.cpomdp.pomdp, s, 0.)
+# LightDarkCMDP
+POMDPTools.action_info(nav::Navigate{P}, s::LightDark1DState) where {P<:UnderlyingCMDP{<:LightDarkCPOMDP}} = navigate(nav.problem.cpomdp.pomdp, s.y, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
+function POMDPTools.action_info(g2g::GoToGoal{P}, s::LightDark1DState) where {P<:UnderlyingCMDP{<:LightDarkCPOMDP}}
+    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem.cpomdp.pomdp, s.y, 0.)
     return action, (;goal=0., distance=abs(s.y))
 end      
 
-POMDPTools.action_info(nav::Navigate{P}, s::NavState) where {P<:CNav} = navigate(nav.problem, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
-POMDPTools.action_info(nav::NavigateSlow{P}, s::NavState) where {P<:CNav} = navigate_slow(nav.problem, s, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
+# CNav
+POMDPTools.action_info(nav::Navigate{P}, s::NavState) where {P<:CNav} = navigate(nav.problem, s.y, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
+POMDPTools.action_info(nav::NavigateSlow{P}, s::NavState) where {P<:CNav} = navigate_slow(nav.problem, s.y, nav.goal), (;goal=nav.goal, distance=abs(s.y-nav.goal))
 function POMDPTools.action_info(g2g::GoToGoal{P}, s::NavState) where {P<:CNav}
-    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem, s, 0.)
+    action = (abs(s.y) < 1) ? action = 0 : action = navigate(g2g.problem, s.y, 0.)
     return action, (;goal=0., distance=abs(s.y))
 end
+
+# LightDarkCPOMDP
+
+function statistics(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:LightDark1DState}
+    ws = weights(b)
+    ws /= sum(ws)
+    ys = [s.y for s in particles(b)]
+    m = dot(ws, ys)
+    diffs = ys - m
+    var = dot(ws, diffs.^2)  
+    return m, sqrt(var)
+end
+
+
+"""
+GoToGoal policy navigates the particle mean to the goal and terminates
+"""
+function POMDPTools.action_info(g2g::GoToGoal{P}, 
+    b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {P<:LightDarkCPOMDP, S<:LightDark1DState}
+    y, std = statistics(b)
+    action = (abs(y) < 1) ? action = 0 : action = navigate(g2g.problem, y, 0.)
+    return action, (;goal=0., distance=y, std=std)
+end
+
+"""
+LocalizeFast policy navigates the particle mean greedily towards `goal` until the particle std is <= `max_std`
+"""
+struct LocalizeFast{P} <: LowLevelPolicy
+    problem::P
+    goal::Float64
+    max_std::Float64
+end
+function POMDPTools.action_info(p::LocalizeFast, b)
+    y, std = statistics(b)
+    return navigate(p.problem, y, p.goal), (;goal=p.goal, distance=abs(y-p.goal), std=std)
+end
+terminate(p::LocalizeFast, b) = Deterministic((last(statistics(b)) <= p.max_std))
+node_tag(p::LocalizeFast) = "LocalizeFast($(p.max_std))"
+
+
+"""
+LocalizeSlow policy navigates the particle mean slowly towards `goal` until the particle std is <= `max_std`
+"""
+struct LocalizeSlow{P} <: LowLevelPolicy
+    problem::P
+    goal::Float64
+    max_std::Float64
+end
+function POMDPTools.action_info(p::LocalizeSlow, b)
+    y, std = statistics(b)
+    return navigate_slow(p.problem, y, p.goal), (;goal=p.goal, distance=abs(y-p.goal), std=std)
+end
+terminate(p::LocalizeSlow, b) = Deterministic((last(statistics(b)) <= p.max_std))
+node_tag(p::LocalizeSlow) = "LocalizeSlow($(p.max_std))"
+
+"""
+LocalizeSafe policy navigates the particle mean towards `goal` from below while keeping at least `α` stds away from `max_y`, until the particle std is <= `max_std`
+"""
+struct LocalizeSafe{P} <: LowLevelPolicy
+    problem::P
+    goal::Float64
+    max_y::Float64
+    α::Float64
+    max_std::Float64
+end
+function POMDPTools.action_info(p::LocalizeSafe, b)
+    y, std = statistics(b)
+    as = actions(p.problem)
+    action = minimum(as)
+    best_dist = Inf
+    for a in as
+        (a ≈ 0.) && continue
+        if (y + a) < (p.cliff - p.α*std)
+            dist = abs(p.goal - y - a)
+            if dist < best_dist
+                best_dist = dist
+                action = a
+            end
+        end
+    end
+    return action, (;goal=p.goal, distance=abs(y-p.goal), std=std)
+end
+terminate(p::LocalizeSafe, b) = Deterministic((last(statistics(b)) <= p.max_std))
+node_tag(p::LocalizeSafe) = "LocalizeSafe($(alpha),$(p.max_std))"
+
+
+

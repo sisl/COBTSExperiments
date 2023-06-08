@@ -20,7 +20,7 @@ cmdp = CNav(;nav_y=target,max_y=target+1)
 options1 = [GoToGoal(cmdp), NavigateSlow(cmdp,cmdp.max_y,1.), Navigate(cmdp,cmdp.max_y+5,5.), [Navigate(cmdp, i, 2.) for i in [ -20., 10, 20, 30]]...]
 options2 = [GoToGoal(cmdp), NavigateSlow(cmdp,cmdp.max_y,1.), Navigate(cmdp,cmdp.max_y+5,5.)]
 
-# runs = [PFT-7, COTS-7, COTS-3]
+# runs = [CMCTS-7, COTS-7, COTS-3]
 runs = [true, true, true]
 
 if runs[1]
