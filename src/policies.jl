@@ -176,15 +176,20 @@ function stats(b::Union{ParticleCollection{S}, WeightedParticleBelief{S}}) where
     ws = weights(b)
     ws /= sum(ws)
     locs = [[s.x, s.y] for s in particles(b)]
-    m = dot(ws, locs)
-    diffs = locs .- m
-    var = dot(ws, diffs.^2)  
-    return m, sqrt(var)
+    m_x = dot(ws, [loc[1] for loc in locs])
+    m_y = dot(ws, [loc[2] for loc in locs])
+    m = [m_x, m_y]
+    diffs = [loc .- m for loc in locs]
+    var_x = dot(ws, [diff[1]^2 for diff in diffs])
+    var_y = dot(ws, [diff[2]^2 for diff in diffs])
+    var = [var_x, var_y]
+    return m, sqrt.(var)
 end
+
 
 function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:RoombaState}
     y, std = stats(b)
-    return @sprintf "RoombaParticles(%.3f±%.3f)" y std
+    return @sprintf "RoombaParticles(%.3f±%.3f,%.3f±%.3f)" y[1] std[1] y[2] std[2]
 end
 
 # Function to calculate distance from a point (px, py) to a line segment (x1, y1) - (x2, y2)
