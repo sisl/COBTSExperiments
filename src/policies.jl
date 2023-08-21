@@ -327,7 +327,7 @@ end
 function POMDPTools.action_info(p::Localize2D, b)
     s = stats(b)[1]
     # If we have a bumper sensor, then we navigate towards the nearest wall, and then we follow the wall until we bump into a new one
-    if p.problem.pomdp.sensor == Bumper
+    if p.problem.pomdp.sensor == Bumper()
         # Get the direction and distance to the nearest wall
         _, wall_dist, wall_point = nearest_wall(p.problem.pomdp.room, s.x, s.y)
         # If we are close enough to the wall, then we follow it
@@ -338,7 +338,7 @@ function POMDPTools.action_info(p::Localize2D, b)
             action = navigate2D(p.problem, b, wall_point)
         end
     # If we instead have a lidar sensor, we simply rotate until we have a low enough std (no bumps)
-    elseif p.problem.pomdp.sensor == Lidar
+    elseif p.problem.pomdp.sensor == Lidar()
         om_max = p.problem.pomdp.mdp.om_max
         action = RoombaState(0, om_max)
     end
