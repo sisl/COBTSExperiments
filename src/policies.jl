@@ -329,7 +329,7 @@ function POMDPTools.action_info(p::Localize2D, b)
     # If we have a bumper sensor, then we navigate towards the nearest wall, and then we follow the wall until we bump into a new one
     if p.problem.pomdp.sensor == Bumper()
         # Get the direction and distance to the nearest wall
-        _, wall_dist, wall_point = nearest_wall(p.problem.pomdp.room, s.x, s.y)
+        _, wall_dist, wall_point = nearest_wall(p.problem.pomdp.mdp.room, s[1], s[2])
         # If we are close enough to the wall, then we follow it
         if wall_dist < 0.1
             action = follow_wall(p.problem, b)
