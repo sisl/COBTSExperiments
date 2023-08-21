@@ -18,6 +18,8 @@ using Printf
 using POMDPs
 using POMDPTools
 
+using RoombaPOMDPs
+
 using CPOMDPs
 import CPOMDPs: costs, costs_limit, n_costs, terminate
 import MCTS: node_tag
@@ -31,10 +33,12 @@ using POMDPModels
 export 
     LightDarkNew, 
     LightDarkCPOMDP,
+    RoombaCPOMDP,
     CNav, 
     zeroV_trueC
 include("cpomdps/cnav.jl")
 include("cpomdps/clightdark.jl")
+include("cpomdps/croomba.jl")
 
 #using RockSample
 #export RockSampleCPOMDP
@@ -44,7 +48,7 @@ include("cpomdps/clightdark.jl")
 #export SpillpointInjectionCPOMDP
 #include("cpomdps/cspillpoint.jl")
 
-#using RoombaPOMDPs ????
+#using RoombaPOMDPs
 
 # Policies
 export
@@ -53,7 +57,9 @@ export
     GoToGoal,
     LocalizeFast,
     LocalizeSlow,
-    LocalizeSafe
+    LocalizeSafe,
+    GoToGoal2D,
+    Localize2D
 include("policies.jl")
 
 # helpers
@@ -77,6 +83,5 @@ export
     run_cmdp_simulation,
     run_cpomdp_simulation
 include("experiments.jl")
-
 
 end # module COBTSExperiments
