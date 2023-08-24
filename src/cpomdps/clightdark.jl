@@ -126,3 +126,18 @@ heuristicV(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollec
 heuristicV(p::POMDPTools.GenerativeBeliefMDP{P}, s::ParticleFilters.ParticleCollection{S}, 
     args...) where {P<:LightDarkCPOMDP, S<:LightDark1DState} = return heuristicV(p.pomdp, s)
 
+### statistics and belief-state node labels
+function statistics(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:LightDark1DState}
+    ws = weights(b)
+    ws /= sum(ws)
+    ys = [s.y for s in particles(b)]
+    m = dot(ws, ys)
+    diffs = ys .- m
+    var = dot(ws, diffs.^2)  
+    return m, sqrt(var)
+end
+
+function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:LightDark1DState}
+    y, std = statistics(b)
+    return @sprintf "LightDarkParticles(%.3f±%.3f)" y std
+end

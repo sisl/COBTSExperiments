@@ -41,3 +41,26 @@ function zeroV_trueC(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.Part
     # return (0, C)
     return (0, [0])
 end
+
+### statistics and belief-state node labels
+function stats(b::Union{ParticleCollection{S}, WeightedParticleBelief{S}}) where {S<:RoombaState}
+    ws = weights(b)
+    ws /= sum(ws)
+    locs = [[s.x, s.y, s.theta] for s in particles(b)]
+    m_x = dot(ws, [loc[1] for loc in locs])
+    m_y = dot(ws, [loc[2] for loc in locs])
+    m_theta = dot(ws, [loc[3] for loc in locs])
+    m = [m_x, m_y, m_theta]
+    diffs = [loc .- m for loc in locs]
+    var_x = dot(ws, [diff[1]^2 for diff in diffs])
+    var_y = dot(ws, [diff[2]^2 for diff in diffs])
+    var_theta = dot(ws, [diff[3]^2 for diff in diffs])
+    var = [var_x, var_y, var_theta]
+    return m, sqrt.(var)
+end
+
+
+function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:RoombaState}
+    y, std = stats(b)
+    return @sprintf "RoombaParticles(%.3f±%.3f,%.3f±%.3f,%.3f±%.3f)" y[1] std[1] y[2] std[2] y[3] std[3]
+end

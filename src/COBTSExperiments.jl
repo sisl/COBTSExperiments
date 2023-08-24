@@ -18,18 +18,14 @@ using Printf
 using POMDPs
 using POMDPTools
 
-using RoombaPOMDPs
 
 using CPOMDPs
 import CPOMDPs: costs, costs_limit, n_costs, terminate
 import MCTS: node_tag
 
-# constrained solvers
-# using CMCTS
-# using COTS
-
 # models 
 using POMDPModels
+using RoombaPOMDPs
 export 
     LightDarkNew, 
     LightDarkCPOMDP,
@@ -40,27 +36,26 @@ include("cpomdps/cnav.jl")
 include("cpomdps/clightdark.jl")
 include("cpomdps/croomba.jl")
 
-#using RockSample
-#export RockSampleCPOMDP
-#include("cpomdps/crocksample.jl")
-
 #using SpillpointPOMDP
 #export SpillpointInjectionCPOMDP
 #include("cpomdps/cspillpoint.jl")
 
-#using RoombaPOMDPs
-
-# Policies
+# Options Policies
 export
+    # Nav + LightDark
     Navigate,
     NavigateSlow,
     GoToGoal,
     LocalizeFast,
     LocalizeSlow,
     LocalizeSafe,
+    # Roomba
     GoToGoal2D,
     Localize2D
-include("policies.jl")
+    #Spillpoint
+include("policies/ld_nav_policies.jl")
+include("policies/roomba_policies.jl")
+include("policies/spillpoint_policies.jl")
 
 # helpers
 export
