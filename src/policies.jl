@@ -268,10 +268,10 @@ function follow_wall(problem::RoombaCPOMDP, b)
     goal_vec = get_goal_xy(problem.pomdp)
 
     # Compute the direction to the goal
-    goal_dir = atan(goal_vec[2] - s.y, goal_vec[1] - s.x)
+    goal_dir = atan(goal_vec[2] - s[2], goal_vec[1] - s[1])
 
     # Get the direction and distance to the nearest wall
-    wall_dir, _, _ = nearest_wall(room, s.x, s.y)
+    wall_dir, _, _ = nearest_wall(room, s[1], s[2])
 
     # Compute the two possible directions the robot can move along the wall
     clockwise_dir = adjust_angle(wall_dir, true)
@@ -289,17 +289,17 @@ function follow_wall(problem::RoombaCPOMDP, b)
     v_max = problem.pomdp.mdp.v_max
 
     # Determine the necessary turn and its direction
-    turn = s.theta - wall_follow_dir
+    turn = s[3] - wall_follow_dir
     turns_required = ceil(abs(turn) / (om_max*dt))
 
     possible_oms = [a[2] for a in actions(problem.pomdp) if a[1] == 0]
-    om = possible_oms[argmin(abs.(turn - dt .* possible_oms))]
+    om = possible_oms[argmin(abs.(turn .- dt .* possible_oms))]
 
     # Generate the action to turn in the chosen direction with zero velocity if multiple turns are required
     if turns_required <= 1
         action = RoombaAct(v_max, om)
     else
-        action = RoombaState(0, om)
+        action = RoombaAct(0, om)
     end
     return action
 end
@@ -318,7 +318,8 @@ function POMDPTools.action_info(p::GoToGoal2D, b)
     dist = norm([s[1], s[2]] - goal_vec)
     return action, (;goal=goal_vec, distance=dist)
 end
-terminate(p::GoToGoal2D, b) = Deterministic(([stats(b)[1][1], stats(b)[1][1]] ≈ get_goal_xy(p.problem.pomdp)))
+# terminate(p::GoToGoal2D, b) = Deterministic(([stats(b)[1][1], stats(b)[1][1]] ≈ get_goal_xy(p.problem.pomdp)))
+terminate(p::GoToGoal2D, b) = Deterministic(norm([stats(b)[1][1], stats(b)[1][1]] - get_goal_xy(p.problem.pomdp)) <= 15)
 node_tag(p::GoToGoal2D) = "GoToGoal2D"
 
 """
