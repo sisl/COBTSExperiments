@@ -175,21 +175,23 @@ node_tag(p::LocalizeSafe) = "LocalizeSafe($(p.α),$(p.max_std))"
 function stats(b::Union{ParticleCollection{S}, WeightedParticleBelief{S}}) where {S<:RoombaState}
     ws = weights(b)
     ws /= sum(ws)
-    locs = [[s.x, s.y] for s in particles(b)]
+    locs = [[s.x, s.y, s.theta] for s in particles(b)]
     m_x = dot(ws, [loc[1] for loc in locs])
     m_y = dot(ws, [loc[2] for loc in locs])
-    m = [m_x, m_y]
+    m_theta = dot(ws, [loc[3] for loc in locs])
+    m = [m_x, m_y, m_theta]
     diffs = [loc .- m for loc in locs]
     var_x = dot(ws, [diff[1]^2 for diff in diffs])
     var_y = dot(ws, [diff[2]^2 for diff in diffs])
-    var = [var_x, var_y]
+    var_theta = dot(ws, [diff[3]^2 for diff in diffs])
+    var = [var_x, var_y, var_theta]
     return m, sqrt.(var)
 end
 
 
 function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:RoombaState}
     y, std = stats(b)
-    return @sprintf "RoombaParticles(%.3f±%.3f,%.3f±%.3f)" y[1] std[1] y[2] std[2]
+    return @sprintf "RoombaParticles(%.3f±%.3f,%.3f±%.3f,%.3f±%.3f)" y[1] std[1] y[2] std[2] y[3] std[3]
 end
 
 # Function to calculate distance from a point (px, py) to a line segment (x1, y1) - (x2, y2)
@@ -205,7 +207,7 @@ function point_to_line_segment(px, py, x1, y1, x2, y2)
         end
     end
     dx, dy = px - x1, py - y1
-    return sqrt(dx * dx + dy * dy), atan(dy, dx), (x1, y1) # distance, direction, nearest point
+    return sqrt(dx * dx + dy * dy), atan(dy, dx), [x1, y1] # distance, direction, nearest point
 end
 
 # Now we can calculate the nearest wall to the robot
@@ -214,10 +216,10 @@ function nearest_wall(room, rx, ry)
     min_direction = 0
     min_point = (0, 0)
     for rectangle in room.rectangles
-        for i in 1:length(rectangle.corners)
+        for i in 1:4
             # Get the coordinates of the two points representing the current wall
-            x1, y1 = rectangle.corners[i]
-            x2, y2 = rectangle.corners[i % length(rectangle.corners) + 1]
+            x1, y1 = rectangle.corners[i, :]
+            x2, y2 = rectangle.corners[i % 4 + 1, :]
             # Calculate the distance and direction from the robot to this wall, and the coordinates of the nearest point on the wall
             distance, direction, point = point_to_line_segment(rx, ry, x1, y1, x2, y2)
             # Update the minimum distance, direction and point if this wall is closer
@@ -243,10 +245,11 @@ end
 # navigate2D function navigates the robot towards `goal`
 function navigate2D(problem::RoombaCPOMDP, b, goal::Vector{Float64})
     s = stats(b)[1]
+    s = RoombaState(s..., 0)
     best_action = RoombaAct(0, 0)
     best_dist = Inf
     for a in actions(problem)
-        new_s = POMDPs.transition(problem, s, a)
+        new_s = rand(transition(problem, s, a))  # not quite random, in fact deterministic
         dist = norm([new_s.x, new_s.y] - goal)
         if dist < best_dist
             best_dist = dist
@@ -261,7 +264,7 @@ function follow_wall(problem::RoombaCPOMDP, b)
     s = stats(b)[1]
 
     # Get the goal and room layout of the problem
-    room = problem.pomdp.room
+    room = problem.pomdp.mdp.room
     goal_vec = get_goal_xy(problem.pomdp)
 
     # Compute the direction to the goal
@@ -322,10 +325,10 @@ Localize2D policy localizes itself by going to the nearest wall (bumper sensor) 
 """
 struct Localize2D{P} <: LowLevelPolicy
     problem::P
-    max_std::Float64
+    max_std::Vector{Float64}
 end
 function POMDPTools.action_info(p::Localize2D, b)
-    s = stats(b)[1]
+    s, std = stats(b)
     # If we have a bumper sensor, then we navigate towards the nearest wall, and then we follow the wall until we bump into a new one
     if p.problem.pomdp.sensor == Bumper()
         # Get the direction and distance to the nearest wall
@@ -342,7 +345,9 @@ function POMDPTools.action_info(p::Localize2D, b)
         om_max = p.problem.pomdp.mdp.om_max
         action = RoombaState(0, om_max)
     end
-    return action, (;goal=0., distance=0., std=last(stds(b)))
+    goal = get_goal_xy(p.problem.pomdp)
+    dist = norm([s[1], s[2]] - goal)
+    return action, (;goal=goal, distance=dist, std=std)
 end
 terminate(p::Localize2D, b) = Deterministic((stats(b)[2] <= p.max_std))
 node_tag(p::Localize2D) = "Localize2D($(p.max_std))"
