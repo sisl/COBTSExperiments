@@ -23,12 +23,15 @@ Example:
 mutable struct COBTSSolver <: Solver
     solver::COTSSolver
     search_updater::Updater
+    exact_rewards::Bool
 end
+COBTSSolver(solver::COTSSolver, su::Updater; exact_rewards::Bool=false) = COBTSSolver(solver,su,exact_rewards)
+
 
 # will return a COTSPlanner with a generative belief cmdp
 # that gbcmdp handles b', r, c = update(updater, b,a,o) internally for search
 function POMDPs.solve(sol::COBTSSolver, p::CPOMDP)
-    bmdp = GenerativeBeliefCMDP(p, sol.search_updater)
+    bmdp = GenerativeBeliefCMDP(p, sol.search_updater; exact_rewards=sol.exact_rewards)
     return solve(sol.solver, bmdp)
 end
 

@@ -78,7 +78,9 @@ if runs[3]
                 rng = rng,
                 options = options2,
                 alpha_schedule = COTS.ConstantAlphaSchedule(as)
-            ), search_updater)
+            ), 
+            search_updater;
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
         @time hist3, R3, C3 = run_cpomdp_simulation(cpomdp, planner, updater, 1; rng=rng)

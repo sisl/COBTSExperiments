@@ -48,6 +48,7 @@ end
 POMDPs.convert_s(::Type{A}, s::LightDark1DState, p::LightDarkNew) where A<:AbstractArray = eltype(A)[s.status, s.y]
 POMDPs.convert_s(::Type{LightDark1DState}, s::A, p::LightDarkNew) where A<:AbstractArray = LightDark1DState(Int64(s[1]), s[2])
 
+
 ## CPOMDP
 
 struct LightDarkCPOMDP{P<:LightDarkNew,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
@@ -68,6 +69,12 @@ costs_limit(p::LightDarkCPOMDP) = [p.cost_budget]
 n_costs(::LightDarkCPOMDP) = 1
 max_reward(p::LightDarkCPOMDP) = p.pomdp.correct_r
 min_reward(p::LightDarkCPOMDP) = -p.pomdp.movement_cost
+
+
+POMDPs.reward(p::GenerativeBeliefCMDP{<:LightDarkCPOMDP}, b::Union{ParticleCollection, WeightedParticleBelief}, 
+    a, bp::Union{ParticleCollection, WeightedParticleBelief}, o) = POMDPs.reward(p, b, a)
+costs(p::GenerativeBeliefCMDP{<:LightDarkCPOMDP}, b::Union{ParticleCollection, WeightedParticleBelief}, 
+    a, bp::Union{ParticleCollection, WeightedParticleBelief}, o) = costs(p, b, a)
 
 function QMDP_V(p::LightDarkNew, s::LightDark1DState, args...) 
     y = abs(s.y)
