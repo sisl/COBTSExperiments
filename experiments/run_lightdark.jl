@@ -71,7 +71,8 @@ if experiments[exp]
             CDPWSolver(;infogain_kwargs..., 
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as)
-            ), search_updater)
+            ), search_updater;
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
@@ -88,7 +89,8 @@ if experiments[exp]
             CDPWSolver(;kwargs...,
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as)
-            ), search_updater)
+            ), search_updater;
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
