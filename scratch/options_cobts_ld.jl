@@ -28,10 +28,10 @@ options1 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,1.), LocalizeFast(cpomdp,1
 options2 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,1.), LocalizeFast(cpomdp,10.,0.5), LocalizeFast(cpomdp,10.,0.2), 
     LocalizeSlow(cpomdp,10.,1.), LocalizeSlow(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.2),
     LocalizeSafe(cpomdp,10., 12., 1., 0.5), LocalizeSafe(cpomdp,10.,12., 0.5, 0.5), LocalizeSafe(cpomdp,10.,12., 1., 0.2)]
-options3 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,0.2), LocalizeSlow(cpomdp,10.,0.2), LocalizeSafe(cpomdp,10., 12., 1., 0.2)]
+options3 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.5), LocalizeSafe(cpomdp,10., 12., 1., 0.5)]
 
 # runs = [PFT-7, ...COBTS with differing options, ]
-runs = [false, false, false, false, true]
+runs = [false, false, false, true, true]
 
 if runs[1]
     for i = 1:2 # time second run through

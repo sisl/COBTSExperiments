@@ -1,82 +1,152 @@
 using COBTSExperiments
 using COTS 
 using CMCTS
+using CPOMCPOW
 using Random
 using ProgressMeter
 using ParticleFilters
 
+# experiments to run
+experiments = Dict(
+    "cpft-infogain"=>true,
+    "cpft-noheur"=>true,
+    "cobts4"=>true,
+    "cobts7"=>true,
+    "cpomcpow"=>true,
+)
+nsims = 10
+
+# same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e4), 
-        :k_state => 1., # 0.1,
-        :alpha_state => 1/5, #0.5,
+        :k_state => 1., # 0.1, # ld experiments use 5
+        :alpha_state => 1/5, #0.5, # ld experiments use 1/15
         :enable_action_pw=>false,
         :depth => 10,
-        :exploration_constant=>200.,
+        :exploration_constant=>200., # ld experiments use 90
         :nu=>0., 
-        :estimate_value=>heuristicV,
-        :tree_in_info => true,
-        :search_progress_info=>true)
-
-cpomdp = LightDarkCPOMDP(cost_budget=0.1)
+        :estimate_value => zero_V,
+        :tree_in_info => false,
+        :search_progress_info => false)
 
 as = 0.5
-search_pf_size = Int(20)
+search_pf_size = Int(10)
 cpomdp_pf_size = Int(1e4)
-options1 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,1.), LocalizeFast(cpomdp,10.,0.5), LocalizeFast(cpomdp,10.,0.2), 
-    LocalizeSlow(cpomdp,10.,1.), LocalizeSlow(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.2)]
-options2 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,0.2), LocalizeSlow(cpomdp,10.,0.2), LocalizeSafe(cpomdp,10., 12., 1., 0.2)]
 
-# runs = [PFT-7, COBTS-7, COBTS-4]
-runs = [true, true, true]
-nsims = 50
-if runs[1]
-    e1 = LightExperimentResults(nsims)
+# CPOMCPOW kwargs 
+cpomcpow_kwargs = Dict(
+    :tree_queries=>kwargs[:n_iterations]*search_pf_size, # fair to total number of particles
+    :k_observation => kwargs[:k_state], 
+    :alpha_observation => kwargs[:alpha_state], 
+    :enable_action_pw => kwargs[:enable_action_pw],
+    :check_repeat_obs => false,
+    :max_depth => kwargs[:depth],
+    :criterion => MaxCUCB(kwargs[:exploration_constant], kwargs[:nu]), 
+    :alpha_schedule => CPOMCPOW.ConstantAlphaSchedule(as),
+    :estimate_value=>kwargs[:estimate_value],
+)
+#options1 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,1.), LocalizeFast(cpomdp,10.,0.5), LocalizeFast(cpomdp,10.,0.2), 
+#    LocalizeSlow(cpomdp,10.,1.), LocalizeSlow(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.2)]
+
+# options
+cpomdp = LightDarkCPOMDP(cost_budget=0.1)
+options = [GoToGoal(cpomdp), 
+LocalizeFast(cpomdp,10.,0.2), LocalizeSlow(cpomdp,10.,0.2), LocalizeSafe(cpomdp, 10., 12., 1., 0.2),
+LocalizeFast(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.5), LocalizeSafe(cpomdp, 10., 12., 1., 0.5), 
+LocalizeFast(cpomdp,10.,1.), LocalizeSlow(cpomdp,10.,1.), LocalizeSafe(cpomdp, 10., 12., 1., 1.)]
+
+rng_stseed = 0
+
+### Experiments
+results = Dict(k=>LightExperimentResults(nsims) for (k,v) in experiments if v)
+
+# CPFT-Infogain
+exp = "cpft-infogain"
+if experiments[exp]
     @showprogress for i = 1:nsims
-        rng = MersenneTwister(i)
+        infogain_kwargs = copy(kwargs)
+        infogain_kwargs[:estimate_value] = heuristicV
+        rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
-            CDPWSolver(;kwargs..., 
+            CDPWSolver(;infogain_kwargs..., 
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as)
             ), search_updater)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
-        e1[i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
-    print_and_save(e1,"results/ld_cmcts_$(nsims)sims.jld2")
 end
 
-if runs[2]
-    e2 = LightExperimentResults(nsims)
+# CPFT-No Heuristic
+exp = "cpft-noheur"
+if experiments[exp]
     @showprogress for i = 1:nsims
-        rng = MersenneTwister(i)
+        rng = MersenneTwister(rng_stseed+i)
+        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        solver = BeliefCMCTSSolver(
+            CDPWSolver(;kwargs...,
+                rng = rng,
+                alpha_schedule = CMCTS.ConstantAlphaSchedule(as)
+            ), search_updater)
+        planner = solve(solver, cpomdp)
+        updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+    end
+end
+
+# COBTS-4
+exp = "cobts4"
+if experiments[exp]
+    @showprogress for i = 1:nsims
+        rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
             COTSSolver(;kwargs..., 
                 rng = rng,
-                options = options1,
+                options = options[1:4],
                 alpha_schedule = COTS.ConstantAlphaSchedule(as)
-            ), search_updater)
+            ), search_updater;
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
-        e2[i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
-    print_and_save(e2,"results/ld_cobts7_$(nsims)sims.jld2")
 end
 
-if runs[3]
-    e3 = LightExperimentResults(nsims)
+# COBTS-7
+exp = "cobts7"
+if experiments[exp]
     @showprogress for i = 1:nsims
-        rng = MersenneTwister(i)
+        rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
             COTSSolver(;kwargs..., 
                 rng = rng,
-                options = options2,
+                options = options[1:7],
                 alpha_schedule = COTS.ConstantAlphaSchedule(as)
-            ), search_updater)
+            ), search_updater;
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
-        e3[i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
-    print_and_save(e3,"results/ld_cobts4_$(nsims)sims.jld2")
+end
+
+# CPOMCPOW
+exp = "cpomcpow"
+if experiments[exp]
+    @showprogress for i = 1:nsims
+        rng = MersenneTwister(rng_stseed+i)
+        solver = CPOMCPOWSolver(;cpomcpow_kwargs..., rng = rng)
+        planner = solve(solver, cpomdp)
+        updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+    end
+end
+
+# Print and save
+for (key,result) in results
+    println("Results for $(key)")
+    print_and_save(result, "results/lightdark_$(key)_$(nsims)sims.jld2") 
 end

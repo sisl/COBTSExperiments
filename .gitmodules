@@ -4,3 +4,6 @@
 [submodule "CMCTS.jl"]
 	path = CMCTS.jl
 	url = https://github.com/sisl/CMCTS.jl
+[submodule "CPOMCPOW.jl"]
+	path = CPOMCPOW.jl
+	url = https://github.com/sisl/CPOMCPOW.jl.git

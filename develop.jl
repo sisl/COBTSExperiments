@@ -12,6 +12,7 @@ dev_packages = [
 
     # Local Packages
     PackageSpec(url=joinpath(@__DIR__, "CMCTS.jl")),
+    PackageSpec(url=joinpath(@__DIR__, "CPOMCPOW.jl")),
     PackageSpec(url=joinpath(@__DIR__, "COTS.jl")),
     PackageSpec(url=joinpath(@__DIR__, "CPOMDPs.jl")),
 

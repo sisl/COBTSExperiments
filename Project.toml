@@ -6,6 +6,7 @@ version = "0.1.0"
 [deps]
 CMCTS = "ff16bef5-90ca-4cd7-8044-bbffdeb5f989"
 COTS = "f13cc095-4163-4f2d-bf68-c3de5b817b94"
+CPOMCPOW = "b8155725-659d-4a2a-8aa1-b2cacdb9031f"
 CPOMDPs = "b333230a-c79e-4dbf-bcff-ea8d21aa5ebd"
 Cairo = "159f3aea-2a34-519c-b102-8c37f9878175"
 D3Trees = "e3df1716-f71e-5df9-9e2d-98e193103c45"
