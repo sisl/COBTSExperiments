@@ -118,7 +118,7 @@ Fields:
     enable_constraint_pw::Bool = false
     depth::Int = 10
     exploration_constant::Float64 = 1.0
-    nu::Float64 = 0.01 # slack to give when searching
+    nu::Float64 = 0.0
     n_iterations::Int = 100
     max_time::Float64 = Inf
     k_action::Float64 = 10.0
@@ -130,6 +130,7 @@ Fields:
     enable_state_pw::Bool = true
     check_repeat_state::Bool = true
     check_repeat_action::Bool = true
+    return_safe_action::Bool = false
     tree_in_info::Bool = false
     search_progress_info::Bool = false
     rng::AbstractRNG = Random.GLOBAL_RNG

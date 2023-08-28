@@ -8,13 +8,15 @@ using ParticleFilters
 
 # experiments to run
 experiments = Dict(
-    "cpft-infogain"=>true,
+    "cpft-infogain"=>false,
     "cpft-noheur"=>true,
-    "cobts4"=>true,
-    "cobts7"=>true,
-    "cpomcpow"=>true,
+    "cpft-noheur-safe"=>true,
+    "cobts4"=>false,
+    "cobts7"=>false,
+    "cobts7safe"=>false,
+    "cpomcpow"=>false,
 )
-nsims = 10
+nsims = 2
 
 # same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e4), 
@@ -28,7 +30,7 @@ kwargs = Dict(:n_iterations=>Int(1e4),
         :tree_in_info => false,
         :search_progress_info => false)
 
-as = 0.5
+as = 0.5 # 1.
 search_pf_size = Int(10)
 cpomdp_pf_size = Int(1e4)
 
@@ -44,8 +46,6 @@ cpomcpow_kwargs = Dict(
     :alpha_schedule => CPOMCPOW.ConstantAlphaSchedule(as),
     :estimate_value=>kwargs[:estimate_value],
 )
-#options1 = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,1.), LocalizeFast(cpomdp,10.,0.5), LocalizeFast(cpomdp,10.,0.2), 
-#    LocalizeSlow(cpomdp,10.,1.), LocalizeSlow(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.2)]
 
 # options
 cpomdp = LightDarkCPOMDP(cost_budget=0.1)
@@ -97,6 +97,24 @@ if experiments[exp]
     end
 end
 
+exp = "cpft-noheur-safe"
+if experiments[exp]
+    @showprogress for i = 1:nsims
+        rng = MersenneTwister(rng_stseed+i)
+        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        solver = BeliefCMCTSSolver(
+            CDPWSolver(;kwargs...,
+                rng = rng,
+                alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
+                return_safe_action=true,
+            ), search_updater;
+            exact_rewards=true)
+        planner = solve(solver, cpomdp)
+        updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+    end
+end
+
 # COBTS-4
 exp = "cobts4"
 if experiments[exp]
@@ -127,6 +145,26 @@ if experiments[exp]
                 rng = rng,
                 options = options[1:7],
                 alpha_schedule = COTS.ConstantAlphaSchedule(as)
+            ), search_updater;
+            exact_rewards=true)
+        planner = solve(solver, cpomdp)
+        updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
+        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+    end
+end
+
+# COBTS-7 safe
+exp = "cobts7safe"
+if experiments[exp]
+    @showprogress for i = 1:nsims
+        rng = MersenneTwister(rng_stseed+i)
+        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        solver = COBTSSolver(
+            COTSSolver(;kwargs..., 
+                rng = rng,
+                options = options[1:7],
+                alpha_schedule = COTS.ConstantAlphaSchedule(as),
+                return_safe_action = true,
             ), search_updater;
             exact_rewards=true)
         planner = solve(solver, cpomdp)

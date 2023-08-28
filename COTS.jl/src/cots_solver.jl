@@ -122,8 +122,11 @@ function search(p::COTSPlanner, snode::Int, info::Dict)
     info[:tree_queries] = nquery
     info[:search_time] = timer() - start_s
     info[:search_time_us] = info[:search_time]*1e6
-
-    return action_policy_UCB(p.tree, snode, p._lambda, 0., p.solver.nu)
+    if p.solver.return_safe_action 
+        return safe_action_policy(p.tree, snode, p.budget)
+    else
+        return action_policy_UCB(p.tree, snode, p._lambda, 0., p.solver.nu)
+    end
 end
 
 """
@@ -253,19 +256,55 @@ function action_policy_UCB(t::COTSTree, s::Int, lambda::Vector{Float64}, c::Floa
         val_diff = best_criterion_val .- criterion_values
         next_best_nodes = t.children[s][0 .< val_diff .< nu]
         append!(best_nodes, next_best_nodes)
+        @warn("""
+         With ν > 0, the default stochastic policy evenly weighs all actions within ν of armgax Q_λ. 
+         See $(@__FILE__) and implement a new method for different special behavior in this case (e.g. the LP of CC-POMCP).
+         """, maxlog=1)
     end
     
     # weigh actions
     if length(best_nodes) == 1
         dist = Deterministic(best_nodes[1])
     else
-        dist = SparseCat(best_nodes,solve_lp(t, best_nodes))
+        dist = SparseCat(best_nodes, ones(Float64, length(best_nodes)) / length(best_nodes))
     end
     return dist
 end
 
-function solve_lp(t::COTSTree, best_nodes::Vector{Int})
-    # Multiple COTS best actions not implemented
-    # Random for now
-    return ones(Float64, length(best_nodes)) / length(best_nodes)
+all_leq(a::Vector, b::Vector) = all(a.<=b)
+function safe_action_policy(t::COTSTree, s::Int, budget::Vector{Float64})
+    """Implement safe final criterion policy.
+
+    argmax_a Qr(ba) s.t. Qc(ba) <= c 
+    If there are no satisfying actions, choose the one with the smallest constraint violation
+    """
+    # for discrete set of children
+    action_nodes = t.children[s]
+    Qr = t.q[action_nodes]
+    Qc = t.qc[action_nodes]
+    feasible = [all_leq(q, budget) for q in Qc]
+    if any(feasible)
+        best_feasible_index = argmax(Qr[feasible])
+        action = action_nodes[feasible][best_feasible_index]
+    else
+        violations = [max.(q.-budget,0) for q in Qc]
+        sum_violations = [sum(v) for v in violations]
+        action = action_nodes[argmin(sum_violations)]
+        @warn("""
+         No feasible action found, choosing action with minimum sum constraint violation. 
+         See $(@__FILE__) for details.
+         """, maxlog=1)
+    end
+    return Deterministic(action)
+end
+
+function root_policy_LP(tree::COTSTree, s::Int, budget::Vector{Float64})
+    """Implement safe final criterion policy.
+
+    Policy solves for action-policy weights w to optimize the following LP:
+        maximize_w sum w'Qr(b,⋅)
+            s.t. w'Qck(b,⋅) <= ck ∀ k 
+                 w >= 0, sum(w) = 1
+    """
+    error("Not Implemented")
 end
