@@ -36,9 +36,9 @@ include("cpomdps/cnav.jl")
 include("cpomdps/clightdark.jl")
 include("cpomdps/croomba.jl")
 
-#using SpillpointPOMDP
-#export SpillpointInjectionCPOMDP
-#include("cpomdps/cspillpoint.jl")
+using SpillpointPOMDP
+export SpillpointInjectionCPOMDP
+include("cpomdps/cspillpoint.jl")
 
 # Options Policies
 export
@@ -51,8 +51,11 @@ export
     LocalizeSafe,
     # Roomba
     GoToGoal2D,
-    Localize2D
+    Localize2D,
     #Spillpoint
+    SingleActionWrapper,
+    InferGeology,
+    SafeFill
 include("policies/ld_nav_policies.jl")
 include("policies/roomba_policies.jl")
 include("policies/spillpoint_policies.jl")

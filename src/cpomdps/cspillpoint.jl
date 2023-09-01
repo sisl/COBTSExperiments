@@ -40,11 +40,16 @@ function SpillpointInjectionCPOMDP(;pomdp::P=SpillpointInjectionPOMDP(
         sat_noise_std = 0.01),
     constraint_budget::Float64 = 100., # Discounted amount of escaped gas allowed # FIXME
     ) where {P<:SpillpointInjectionPOMDP}
-    println("hit option 2!")
     return SpillpointInjectionCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp, constraint_budget)
 end
 
-costs(::SpillpointInjectionCPOMDP, s, a, sp) = [sp.v_exited - s.v_exited]
+CPOMDPs.costs(::SpillpointInjectionCPOMDP, s, a, sp) = [sp.v_exited - s.v_exited]
+
+function CPOMDPs.costs(m::GenerativeBeliefCMDP{P}, b, a) where {P <: SpillpointInjectionCPOMDP}
+    ss = [rand(b) for i=1:100]
+    sps = [gen(m.cpomdp, s, a).sp for s in ss]
+    return Statistics.mean([costs(m.cpomdp, s, a, sp) for (s,sp) in zip(ss, sps)])
+end
 
 Base.convert(::Type{ParticleFilters.ParticleCollection{SpillpointPOMDP.SpillpointInjectionState}}, 
     s::SpillpointPOMDP.SIRParticleBelief{SpillpointPOMDP.SpillpointInjectionState}) = s.particle_collection
@@ -56,7 +61,7 @@ max_reward(p::SpillpointInjectionCPOMDP) = p.pomdp.trapped_reward * max_volume_d
 min_reward(p::SpillpointInjectionCPOMDP) = minimum(p.pomdp.obs_rewards)
 
 QMDP_V(pomdp::SpillpointInjectionPOMDP, s::SpillpointInjectionState, args...) = 0.1*pomdp.trapped_reward*(
-    CPOMDPExperiments.SpillpointPOMDP.trap_capacity(s.m, s.sr, lb=s.v_trapped, ub=0.3, rel_tol=1e-2, abs_tol=1e-3) - s.v_trapped)
+    SpillpointPOMDP.trap_capacity(s.m, s.sr, lb=s.v_trapped, ub=0.3, rel_tol=1e-2, abs_tol=1e-3) - s.v_trapped)
 QMDP_V(cpomdp, args...) = (QMDP_V(cpomdp.pomdp, args...), zeros(Float64, n_costs(cpomdp))) 
 function QMDP_V(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollection{S}, args...) where {P<:SpillpointInjectionCPOMDP, S<:SpillpointInjectionState}
     V = 0.

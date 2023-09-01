@@ -129,6 +129,8 @@ function search(p::COTSPlanner, snode::Int, info::Dict)
     end
 end
 
+options(sol::COTSSolver, mdp, s) = sol.options
+
 """
 Return the reward for one iteration of COTS.
 """
@@ -158,7 +160,7 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float64})
             end
         end
     elseif isempty(tree.children[snode])
-        for a in sol.options # assume fixed set of options that can begin from every state, fix with options(::OptionsPolicy, mdp, s)
+        for a in options(sol, dpw.mdp, s) #sol.options # assume fixed set of options that can begin from every state, fix with options(::OptionsPolicy, mdp, s)
             n0 = init_N(sol.init_N, dpw.mdp, s, a)
             q0 = init_Q(sol.init_Q, dpw.mdp, s, a)
             qc0 = init_Qc(sol.init_Qc, dpw.mdp, s, a)
