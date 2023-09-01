@@ -170,6 +170,7 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float64})
     acts = action_policy_UCB(tree, snode, dpw._lambda, sol.exploration_constant, sol.nu)
     sanode = rand(dpw.rng, acts)
     a = tree.a_labels[sanode]
+    reset!(a) # Reset any state information in the low level policy
 
     # state progressive widening
     new_node = false
