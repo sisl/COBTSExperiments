@@ -1,4 +1,11 @@
 ### Constrained Roomba Problem
+"""
+Some default parameters:
+goal_reward = 10
+stairs-penalty: -10
+time_pen = -0.1
+contact_pen = -1
+"""
 
 # Unconstrained version is defined as
 """
@@ -11,23 +18,24 @@ end
 # Constrained version
 struct RoombaCPOMDP{P<:RoombaPOMDP,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
     pomdp::P
+    avoid_region::Vector{Float64}  # [xmin, xmax, ymin, ymax]
     cost_budget::Float64
 end
 
-function RoombaCPOMDP(pomdp::P; cost_budget::Float64=0.5) where {P<:RoombaPOMDP}
-    return RoombaCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp,cost_budget)
+function RoombaCPOMDP(pomdp::P; avoid_region::Vector{Float64}=[0, 5, -2.5, 2.5], cost_budget::Float64=0.5) where {P<:RoombaPOMDP}
+    return RoombaCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp, avoid_region, cost_budget)
 end
 
 
-# If collided with wall, state status becomes negative, positive for goal, 0 otherwise
-costs(pomdp::RoombaCPOMDP, s::RoombaState, a::RoombaAct) = Float64[s.status < 0]
+# New cost function is defined for a certain region that the robot is not allowed to enter
+costs(cpomdp::RoombaCPOMDP, s::RoombaState, a::RoombaAct) = Float64[(cpomdp.avoid_region[1] <= s.x <= cpomdp.avoid_region[2] && cpomdp.avoid_region[3] <= s.y <= cpomdp.avoid_region[4])]
 
 # NOTE: now we have to set RoombaMDP.stairs_penalty to zero as it's part of the costs now
 
 costs_limit(p::RoombaCPOMDP) = [p.cost_budget]
 n_costs(::RoombaCPOMDP) = 1
-min_reward(p::RoombaCPOMDP) = p.pomdp.mdp.time_pen + p.pomdp.mdp.contact_pen
-max_reward(p::RoombaCPOMDP) = p.pomdp.mdp.time_pen + p.pomdp.mdp.goal_reward
+# min_reward(p::RoombaCPOMDP) = p.pomdp.mdp.time_pen + p.pomdp.mdp.contact_pen
+# max_reward(p::RoombaCPOMDP) = p.pomdp.mdp.time_pen + p.pomdp.mdp.goal_reward
 
 zeroV_trueC(p::RoombaCPOMDP, s::RoombaState, args...) = (0, [0])
 
@@ -58,7 +66,6 @@ function stats(b::Union{ParticleCollection{S}, WeightedParticleBelief{S}}) where
     var = [var_x, var_y, var_theta]
     return m, sqrt.(var)
 end
-
 
 function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:RoombaState}
     y, std = stats(b)

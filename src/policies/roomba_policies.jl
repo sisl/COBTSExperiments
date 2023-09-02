@@ -126,7 +126,7 @@ function POMDPTools.action_info(p::GoToGoal2D, b)
     return action, (;goal=goal_vec, distance=dist)
 end
 # terminate(p::GoToGoal2D, b) = Deterministic(([stats(b)[1][1], stats(b)[1][1]] ≈ get_goal_xy(p.problem.pomdp)))
-terminate(p::GoToGoal2D, b) = Deterministic(norm([stats(b)[1][1], stats(b)[1][1]] - get_goal_xy(p.problem.pomdp)) <= 15)
+terminate(p::GoToGoal2D, b) = Deterministic(norm([stats(b)[1][1], stats(b)[1][2]] - get_goal_xy(p.problem.pomdp)) <= 15)
 node_tag(p::GoToGoal2D) = "GoToGoal2D"
 
 """
@@ -152,11 +152,11 @@ function POMDPTools.action_info(p::Localize2D, b)
     # If we instead have a lidar sensor, we simply rotate until we have a low enough std (no bumps)
     elseif p.problem.pomdp.sensor == Lidar()
         om_max = p.problem.pomdp.mdp.om_max
-        action = RoombaState(0, om_max)
+        action = RoombaAct(0, om_max)
     end
     goal_vec = get_goal_xy(p.problem.pomdp)
     dist = norm([s[1], s[2]] - goal_vec)
     return action, (;goal=goal_vec, distance=dist, std=std)
 end
-terminate(p::Localize2D, b) = Deterministic((stats(b)[2] <= p.max_std))
+terminate(p::Localize2D, b) = Deterministic(all(stats(b)[2] .<= p.max_std))
 node_tag(p::Localize2D) = "Localize2D($(p.max_std))"

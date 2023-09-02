@@ -20,7 +20,7 @@ kwargs = Dict(:n_iterations=>Int(1e4),
 
 sensor = Bumper() # Bumper() or Lidar()
 config = 1 # 1,2, or 3 for different room configurations
-vs = [0, 1, 5]
+vs = [0, 1, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
 pomdp = RoombaPOMDP(sensor=sensor,
@@ -34,7 +34,7 @@ cpomdp_pf_size = Int(1e4)
 options1 = [GoToGoal2D(cpomdp), Localize2D(cpomdp, [0.2, 0.2, 0.3]), Localize2D(cpomdp, [0.5, 0.5, 0.6])]
 options2 = [GoToGoal2D(cpomdp), Localize2D(cpomdp, [0.1, 0.1, 0.2]), Localize2D(cpomdp, [0.8, 0.8, 0.9])]
 
-runs = [false, false, true]
+runs = [false, true, false]
 
 if runs[1]
     for i = 1:2 # time second run through
