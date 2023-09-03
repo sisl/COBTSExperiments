@@ -14,7 +14,7 @@ experiments = Dict(
     "cobts7"=>true,
     "cpomcpow"=>true,
 )
-nsims = 100
+nsims = 50
 
 # same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e4), 
@@ -60,6 +60,7 @@ results = Dict(k=>LightExperimentResults(nsims) for (k,v) in experiments if v)
 # CPFT-Infogain
 exp = "cpft-infogain"
 if experiments[exp]
+    println(exp)
     @showprogress for i = 1:nsims
         infogain_kwargs = copy(kwargs)
         infogain_kwargs[:estimate_value] = heuristicV
@@ -69,18 +70,20 @@ if experiments[exp]
             CDPWSolver(;infogain_kwargs..., 
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
-                return_safe_action=true,
+                return_safe_action=false,
             ), search_updater;
-            exact_rewards=true)
+            exact_rewards=false)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
+    print_and_save(results[exp], "results/lightdark_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPFT-No Heuristic
 exp = "cpft-noheur"
 if experiments[exp]
+    println(exp)
     @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
@@ -88,19 +91,21 @@ if experiments[exp]
             CDPWSolver(;kwargs...,
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
-                return_safe_action=true,
+                return_safe_action=false,
             ), search_updater;
-            exact_rewards=true)
+            exact_rewards=false)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
+    print_and_save(results[exp], "results/lightdark_$(exp)_$(nsims)sims.jld2") 
 end
 
 
 # COBTS-4
 exp = "cobts4"
 if experiments[exp]
+    println(exp)
     @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
@@ -116,11 +121,13 @@ if experiments[exp]
         updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
+    print_and_save(results[exp], "results/lightdark_$(exp)_$(nsims)sims.jld2") 
 end
 
 # COBTS-7
 exp = "cobts7"
 if experiments[exp]
+    println(exp)
     @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
@@ -136,11 +143,13 @@ if experiments[exp]
         updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
+    print_and_save(results[exp], "results/lightdark_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPOMCPOW
 exp = "cpomcpow"
 if experiments[exp]
+    println(exp)
     @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         solver = CPOMCPOWSolver(;cpomcpow_kwargs..., rng = rng)
@@ -148,10 +157,5 @@ if experiments[exp]
         updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
-end
-
-# Print and save
-for (key,result) in results
-    println("Results for $(key)")
-    print_and_save(result, "results/lightdark_$(key)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/lightdark_$(exp)_$(nsims)sims.jld2") 
 end
