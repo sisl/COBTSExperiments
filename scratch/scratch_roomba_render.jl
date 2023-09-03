@@ -7,6 +7,7 @@ using Gtk
 using Random
 using Printf
 using POMDPSimulators
+using Infiltrator
 # using Statistics
 
 
@@ -84,12 +85,13 @@ for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=100)
         ctx = getgc(c)
         set_source_rgb(ctx,1,1,1)
         paint(ctx)
-        render(ctx, cpomdp.pomdp, step)
+        render(ctx, cpomdp, step)
         
         # render some information that can help with debugging
         # here, we render the time-step, the state, and the observation
         move_to(ctx,300,400)
-        show_text(ctx, @sprintf("t=%d, state=%s, o=%.3f",t,string(step.s),step.o))
+        show_text(ctx, @sprintf("t=%d, state=[%.1f,%.1f,%.1f,%i], o=%.1f, r=%.1f, c=%.1f",
+            t,step.s..., step.o, step.r, step.c[1]))
     end
     show(c)
     sleep(0.3) # to slow down the simulation

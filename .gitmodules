@@ -7,3 +7,6 @@
 [submodule "CPOMCPOW.jl"]
 	path = CPOMCPOW.jl
 	url = https://github.com/sisl/CPOMCPOW.jl.git
+[submodule "RoombaPOMDPs.jl"]
+	path = RoombaPOMDPs.jl
+	url = https://github.com/sisl/RoombaPOMDPs.jl.git

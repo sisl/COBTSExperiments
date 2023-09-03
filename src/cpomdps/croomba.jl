@@ -22,15 +22,54 @@ struct RoombaCPOMDP{P<:RoombaPOMDP,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
     cost_budget::Float64
 end
 
-function RoombaCPOMDP(pomdp::P; avoid_region::Vector{Float64}=[0, 5, -2.5, 2.5], cost_budget::Float64=0.5) where {P<:RoombaPOMDP}
+function RoombaCPOMDP(pomdp::P; avoid_region::Vector{Float64}=[-5., 5, -2, 2], cost_budget::Float64=0.5) where {P<:RoombaPOMDP}
     return RoombaCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp, avoid_region, cost_budget)
 end
 
+in_avoid_region(cpomdp::RoombaCPOMDP, s::RoombaState) = cpomdp.avoid_region[1] <= s.x <= cpomdp.avoid_region[2] && cpomdp.avoid_region[3] <= s.y <= cpomdp.avoid_region[4]
 
 # New cost function is defined for a certain region that the robot is not allowed to enter
-costs(cpomdp::RoombaCPOMDP, s::RoombaState, a::RoombaAct) = Float64[(cpomdp.avoid_region[1] <= s.x <= cpomdp.avoid_region[2] && cpomdp.avoid_region[3] <= s.y <= cpomdp.avoid_region[4])]
+costs(cpomdp::RoombaCPOMDP, s::RoombaState, a::RoombaAct) = Float64[in_avoid_region(cpomdp, s)]
 
 # NOTE: now we have to set RoombaMDP.stairs_penalty to zero as it's part of the costs now
+
+# transform coordinates using window from RoombaPOMDPs
+transform_coords(x,y) = (x + 30.0)/50.0*600, -(y - 20.0)/50.0*600
+
+function RoombaPOMDPs.render(ctx::CairoContext, m::RoombaCPOMDP, step)
+    # find constraint region coordinates
+    xmin, xmax, ymin, ymax = m.avoid_region
+    xmin, ymin = transform_coords(xmin,ymin)
+    xmax, ymax = transform_coords(xmax,ymax)
+    
+    # fill light constraint region
+    set_source_rgba(ctx,0.82,0.15,0.19, 0.3)
+    rectangle(ctx,xmin,ymax,xmax-xmin,ymin-ymax)  # region
+    fill(ctx)
+    
+    # render POMDP
+    RoombaPOMDPs.render(ctx,m.pomdp, step)
+
+    # draw region outline
+    set_source_rgb(ctx,1.0,0.,0.)
+    set_line_width(ctx, 2)
+    move_to(ctx, xmin, ymin)
+    line_to(ctx, xmax, ymin)
+    Cairo.stroke(ctx)
+    move_to(ctx, xmax, ymin)
+    line_to(ctx, xmax, ymax)
+    Cairo.stroke(ctx)
+    move_to(ctx, xmax, ymax)
+    line_to(ctx, xmin, ymax)
+    Cairo.stroke(ctx)
+    move_to(ctx, xmin, ymax)
+    line_to(ctx, xmin, ymin)
+    Cairo.stroke(ctx)
+
+    #reset rgb
+    set_source_rgb(ctx,0.,0.,0.)
+end
+
 
 costs_limit(p::RoombaCPOMDP) = [p.cost_budget]
 n_costs(::RoombaCPOMDP) = 1
@@ -47,7 +86,7 @@ function zeroV_trueC(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.Part
     # end
     # C ./= sum(ws)
     # return (0, C)
-    return (0, [0])
+    return (0, [0.])
 end
 
 ### statistics and belief-state node labels

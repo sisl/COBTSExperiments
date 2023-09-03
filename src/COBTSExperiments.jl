@@ -14,7 +14,7 @@ using Distributed
 using FileIO
 using Distributions
 using Printf
-
+using Cairo
 using POMDPs
 using POMDPTools
 
