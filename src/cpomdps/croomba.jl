@@ -33,7 +33,7 @@ struct RoombaCPOMDP{P<:RoombaPOMDP,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
 end
 
 function RoombaCPOMDP(pomdp::P; avoid_region::Vector{Float64}=[-5., 5, -5, 0], cost_budget::Float64=0.5,
-    init_bounds::RoombaCPOMDPInitBounds=RoombaCPOMDPInitBounds(-25.,-15.,-20.,5.,-π,π)) where {P<:RoombaPOMDP}
+    init_bounds::RoombaCPOMDPInitBounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,-π,π)) where {P<:RoombaPOMDP}
     return RoombaCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp, avoid_region, cost_budget, init_bounds)
 end
 

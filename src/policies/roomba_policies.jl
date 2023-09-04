@@ -9,7 +9,7 @@ mutable struct TurnThenGo{P<:RoombaCPOMDP} <: LowLevelPolicy
     max_steps::Int # number of option steps above which to terminate
     steps::Int # number of steps taken in option
 end
-TurnThenGo(cpomdp::P; turn_steps = 0, max_std = [0.0, 0.0], max_steps = 10) where {P<:RoombaCPOMDP} = TurnThenGo{P}(cpomdp, turn_steps, max_std, max_steps, 0)
+TurnThenGo(cpomdp::P; turn_steps = 0, max_std = [0.3, 0.3], max_steps = 10) where {P<:RoombaCPOMDP} = TurnThenGo{P}(cpomdp, turn_steps, max_std, max_steps, 0)
 function POMDPTools.action_info(p::TurnThenGo, b)
     if p.steps <= abs(p.turn_steps) 
         om_max = p.problem.pomdp.mdp.om_max
@@ -22,7 +22,7 @@ function POMDPTools.action_info(p::TurnThenGo, b)
 end
 terminate(p::TurnThenGo, b) = Deterministic(all(stats(b)[2][1:2] .<= p.max_std) || p.steps >= p.max_steps)
 reset!(p::TurnThenGo) = (p.steps = 0)
-node_tag(p::TurnThenGo) = "TurnThenGo($(p.turn), $(p.max_steps))"
+node_tag(p::TurnThenGo) = "TurnThenGo($(p.turn_steps), $(p.max_steps))"
 
 # Greedy Go To Goal Option
 mutable struct GreedyGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
@@ -34,7 +34,11 @@ end
 GreedyGoToGoal(cpomdp::P; max_std = [20.0, 20.0], max_steps = 40) where {P<:RoombaCPOMDP} = GreedyGoToGoal{P}(cpomdp, max_std, max_steps, 0)
 function POMDPTools.action_info(p::GreedyGoToGoal, b)
     s = stats(b)[1] # means
-    goal_vec = get_goal_xy(p.problem.pomdp)
+    if s[1] < -15
+        goal_vec = [-15., 0] #waypoint
+    else
+        goal_vec = get_goal_xy(p.problem.pomdp)
+    end
     action = navigate2D(p.problem, b, goal_vec)
     dist = norm([s[1], s[2]] - goal_vec)
     p.steps += 1
@@ -54,7 +58,11 @@ end
 SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40) where {P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, max_std, max_steps, 0)
 function POMDPTools.action_info(p::SafeGoToGoal, b)
     s = stats(b)[1] # means
-    goal_vec = get_goal_xy(p.problem.pomdp)
+    if s[1] < -15
+        goal_vec = [-15., 0]
+    else
+        goal_vec = get_goal_xy(p.problem.pomdp)
+    end
     action = navigate2Dsafe(p.problem, b, goal_vec)
     dist = norm([s[1], s[2]] - goal_vec)
     p.steps += 1

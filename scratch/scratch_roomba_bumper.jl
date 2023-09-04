@@ -1,6 +1,7 @@
 using COBTSExperiments
 using RoombaPOMDPs
 using POMDPs
+using CPOMDPs
 using ParticleFilters
 using Cairo
 using Gtk
@@ -17,22 +18,26 @@ using Statistics
 
 problem = "discrete"
 sensor = Bumper() # Bumper() or Lidar()
-config = 1 # 1,2, or 3 for different room configurations
 vs = [0, 1, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
 pomdp = RoombaPOMDP(sensor=sensor,
-                    mdp=RoombaMDP(v_max=maximum(vs), om_max=maximum(oms),config=config, aspace=RoombaActSpace))
+                    mdp=RoombaMDP(v_max=maximum(vs), om_max=maximum(oms),config=4, aspace=RoombaActSpace))
 cpomdp = RoombaCPOMDP(pomdp, cost_budget=1000.)
 
+options = [GreedyGoToGoal(cpomdp;max_steps=20), GreedyGoToGoal(cpomdp;max_steps=40),
+    SafeGoToGoal(cpomdp;max_steps=20), SafeGoToGoal(cpomdp;max_steps=20),
+    TurnThenGo(cpomdp;turn_steps=0,max_steps=10), TurnThenGo(cpomdp;turn_steps=2,max_steps=10),
+    TurnThenGo(cpomdp;turn_steps=-2,max_steps=10), TurnThenGo(cpomdp;turn_steps=4,max_steps=10)]
+    
 num_particles = 10000
 v_noise_coefficient = 1.0
 om_noise_coefficient = 0.5
 
 belief_updater = RoombaParticleFilter(cpomdp.pomdp, num_particles, v_noise_coefficient, om_noise_coefficient);
 # belief_updater = BootstrapFilter(cpomdp, num_particles)
-max_steps = 50
-check_ts = [1] # time steps to check tree and lambda history
+max_steps = 100
+check_ts = [] # [1,30] # time steps to check tree and lambda history
 run_policy = 3 # [1 = CPOMCPOW, 2 = CPFT-DPW, 3=COBETS]
 
 ### CPOMCPOW policy p
@@ -51,9 +56,9 @@ if run_policy == 1
         :alpha_action => 1/5., 
         :check_repeat_act => true,
 
-        :max_depth => 80,
+        :max_depth => max_steps,
         # Q + k sqrt(N(sa)/log(N))
-        :criterion => MaxCUCB(1., 0.), 
+        :criterion => MaxCUCB(2., 0.), 
         :alpha_schedule => CPOMCPOW.ConstantAlphaSchedule(1.), # lambda = max(0, lambda + alphaschedule(iteration)*( Qsim - budget ))
         :estimate_value=>zero_V,
     )
@@ -75,13 +80,14 @@ elseif run_policy == 2
         :k_action => 1.,
         :alpha_action => 1/5.,
         
-        :depth => 50,
+        :depth => max_steps,
         :estimate_value => zero_V, # heuristicV
-        :exploration_constant => 1.,
+        :exploration_constant => 2.,
         :nu => 0.,
         :alpha_schedule => CMCTS.ConstantAlphaSchedule(1.),
     )
-    search_updater = BootstrapFilter(cpomdp, 30)
+    search_updater = RoombaParticleFilter(cpomdp.pomdp, 30, v_noise_coefficient, om_noise_coefficient)
+#    search_updater = BootstrapFilter(cpomdp, 30)
     solver = BeliefCMCTSSolver(
         CDPWSolver(;cpft_kwargs...), search_updater;
         exact_rewards=false)
@@ -92,7 +98,7 @@ elseif run_policy == 2
 elseif run_policy == 3
     # CoBETS kwargs
     cobts_kwargs = Dict(
-        :options => [GoToGoal2D(cpomdp), Localize2D(cpomdp, [0.1, 0.1, 0.2]), Localize2D(cpomdp, [0.8, 0.8, 0.9])],
+        :options => options,
         :n_iterations=>Int(1e3),
 
         # belief-state widening: Bumper = None, Lidar = (1., 1/5)
@@ -102,17 +108,18 @@ elseif run_policy == 3
 
         # option widening: Default false
         :enable_action_pw=>false,
-        
-        :depth => 50,
+        :return_safe_action=>false,
+        :depth => max_steps,
         :estimate_value => zero_V, # heuristicV
-        :exploration_constant => 1.,
+        :exploration_constant => 2.,
         :nu => 0.,
         :alpha_schedule => COTS.ConstantAlphaSchedule(1.),
     )
-    search_updater = BootstrapFilter(cpomdp, 30)
+    search_updater = RoombaParticleFilter(cpomdp.pomdp, 30, v_noise_coefficient, om_noise_coefficient)
+    #search_updater = BootstrapFilter(cpomdp, 30)
     solver = COBTSSolver(
         COTSSolver(;cobts_kwargs...), search_updater;
-        exact_rewards=false)
+        exact_rewards=true)
     p = solve(solver, cpomdp)
 else
     error("Not Implemented")
@@ -129,24 +136,37 @@ if 1 in check_ts
     p.solver.tree_in_info = true
     p.solver.search_progress_info = true
 end
+hl_action = nothing
 for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_steps))
-    
+#    @infiltrate
+    (p isa OptionsPolicy) && (global hl_action = low_level(p))
+
     if p.solver.tree_in_info && p.solver.search_progress_info
+        skip = false
         # extract tree
-        if run_policy == 3
-            tree = step.action_info.select[:tree]
-            lambdas = step.action_info.select[:lambda]
+        if p isa OptionsPolicy 
+            if step.action_info.select !== nothing
+                tree = step.action_info.select[:tree]
+                lambdas = step.action_info.select[:lambda]
+            else
+                skip=true
+            end
         else
             tree = step.action_info[:tree]
             lambdas = step.action_info[:lambda]
         end
 
-        # plot tree
-        inchrome(D3Tree(tree; lambda=lambdas[end]))
-        
-        # plot lambdas
-        plt = plot(1:length(lambdas), transpose(hcat(lambdas...)))
-        savefig(plt, "scratch/roomba_$(problem)_lambda_step$(t).png")
+        if !skip
+            # plot tree
+            inchrome(D3Tree(tree; lambda=lambdas[end]))
+            
+            # plot lambdas
+            plt = plot(1:length(lambdas), transpose(hcat(lambdas...)))
+            saveloc="scratch/figs/roomba_$(problem)_lambda_step$(t).png"
+            dir = dirname(saveloc)
+            !isdir(dir) && mkpath(dir)
+            savefig(plt, saveloc)
+        end
         p.solver.tree_in_info = false
         p.solver.search_progress_info = false
     end
@@ -165,9 +185,13 @@ for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_
         # render some information that can help with debugging
         # here, we render the time-step, the state, and the observation
         move_to(ctx,300,400)
-        show_text(ctx, @sprintf("t=%d, state=[%.1f,%.1f,%.1f,%i], o=%.1f, r=%.1f, c=%.1f",
-        t,step.s..., step.o, step.r, step.c[1]))
+        show_text(ctx, @sprintf("t=%d, state=[%.1f,%.1f,%.1f,%i], a=[%.1f,%.1f], o=%.1f, r=%.1f, c=%.1f",
+        t,step.s..., step.a..., step.o, step.r, step.c[1]))
+        if hl_action !== nothing
+            move_to(ctx,300,420)
+            show_text(ctx, @sprintf("Option: %s", COBTSExperiments.node_tag(hl_action)))
         end
+    end
     show(c)
     sleep(0.1) # to slow down the simulation
 end

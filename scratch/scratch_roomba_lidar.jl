@@ -126,7 +126,7 @@ end
 
 
 # first seed the environment
-Random.seed!(2)
+Random.seed!(3)
 
 # run the simulation
 c = @GtkCanvas()
@@ -161,7 +161,10 @@ for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_
             
             # plot lambdas
             plt = plot(1:length(lambdas), transpose(hcat(lambdas...)))
-            savefig(plt, "scratch/roomba_$(problem)_lambda_step$(t).png")
+            saveloc="scratch/figs/roomba_$(problem)_lambda_step$(t).png"
+            dir = dirname(saveloc)
+            !isdir(dir) && mkpath(dir)
+            savefig(plt, saveloc)
         end
         p.solver.tree_in_info = false
         p.solver.search_progress_info = false
