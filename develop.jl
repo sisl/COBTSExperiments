@@ -8,13 +8,14 @@ dev_packages = [
     # Remote Problems 
     # PackageSpec(url="https://github.com/JuliaPOMDP/RockSample.jl", rev="4f8112b975d71c59ee6b67721bb1d41c06ad1334"),
     PackageSpec(url="https://github.com/sisl/SpillpointPOMDP.jl"), #rev="847b80548dfdffa1664f7d91cfc05eeeacc8a1c4"),
-    PackageSpec(url="https://github.com/sisl/RoombaPOMDPs.jl"), #rev="a63d13e101d04e55ec61ca2468f9ec383a58779d"),
+    # PackageSpec(url="https://github.com/sisl/RoombaPOMDPs.jl"), #rev="a63d13e101d04e55ec61ca2468f9ec383a58779d"),
 
     # Local Packages
     PackageSpec(url=joinpath(@__DIR__, "CMCTS.jl")),
     PackageSpec(url=joinpath(@__DIR__, "CPOMCPOW.jl")),
     PackageSpec(url=joinpath(@__DIR__, "COTS.jl")),
     PackageSpec(url=joinpath(@__DIR__, "CPOMDPs.jl")),
+    PackageSpec(url=joinpath(@__DIR__, "RoombaPOMDPs.jl")),
 
 ]
 

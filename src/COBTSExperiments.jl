@@ -8,7 +8,8 @@ using POMDPGifs
 using ParticleFilters
 using LinearAlgebra
 using Plots
-import Statistics
+using Statistics
+import Statistics: mean, std
 using Random
 using Distributed
 using FileIO
@@ -20,7 +21,7 @@ using POMDPTools
 
 
 using CPOMDPs
-import CPOMDPs: costs, costs_limit, n_costs, terminate
+import CPOMDPs: costs, costs_limit, n_costs, terminate, reset!
 import MCTS: node_tag
 
 # models 
@@ -52,6 +53,11 @@ export
     # Roomba
     GoToGoal2D,
     Localize2D,
+    GreedyGoToGoal,
+    SafeGoToGoal,
+    TurnThenGo,
+    BigSpin,
+    Spin,
     #Spillpoint
     SingleActionWrapper,
     InferGeology,

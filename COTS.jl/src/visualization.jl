@@ -120,20 +120,26 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", lambda=nothing, kwarg
     link_style = fill("", len)
     max_q = maximum(tree.q)
     min_q = minimum(tree.q)
-    depth = generate_depths(tree)
+    depth, reward, cost = generate_stats(tree)
     for s in 1:lens
         children[s] = tree.children[s] .+ lens
         text[s] =  @sprintf("""
                             %25s
                             N: %6d
+                            R^: %6.2f
+                            C^: %20s 
                             """,
                             node_tag(tree.s_labels[s]),
-                            tree.total_n[s]
+                            tree.total_n[s],
+                            reward[s],
+                            cost[s],
                            )
         tt[s] = """
                 $(tooltip_tag(tree.s_labels[s]))
                 N: $(tree.total_n[s])
                 d: $(depth[s])
+                R^: $(reward[s])
+                C^: $(cost[s]) 
                 """
         lambda !== nothing && s==1 && (tt[s] *= """λ: $(lambda)""")
         for sa in tree.children[s]
@@ -190,21 +196,27 @@ function D3Trees.D3Tree(tree::COTSTree; title="COTS Tree", lambda=nothing, kwarg
 end
 
 
-function generate_depths(tree::COTSTree)
+function generate_stats(tree::COTSTree)
     lens = length(tree.total_n)
     lensa = length(tree.n)
     len = lens + lensa
     depth = ones(Int,len)
+    reward = zeros(Float64,lens)
+    cost = [Float64[] for _ in 1:lens]
     for s = 1:lens
         for sa = tree.children[s]
             depth[sa+lens] = 0
             trans = tree.transitions[sa]
             sps = first.(trans)
+            rs = [t[2] for t in trans]
+            cs = [t[3] for t in trans]
             num_steps = last.(trans)
-            for (sp, ns) in zip(sps,num_steps)
+            for (sp, r, c, ns) in zip(sps,rs, cs, num_steps)
                 (depth[sp] == 1) && (depth[sp] = depth[s] + ns) # only update depth the first time.
+                reward[sp] = r
+                cost[sp] = c
             end
         end
     end
-    return depth
+    return depth, reward, cost
 end

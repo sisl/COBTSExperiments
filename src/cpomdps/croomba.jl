@@ -15,17 +15,35 @@ struct RoombaPOMDP{SS, AS, S, T, O} <: POMDP{S, RoombaAct, O}
 end
 """
 
+struct RoombaCPOMDPInitBounds
+    xmin::Float64
+    xmax::Float64
+    ymin::Float64
+    ymax::Float64
+    thmin::Float64
+    thmax::Float64
+end
+
 # Constrained version
 struct RoombaCPOMDP{P<:RoombaPOMDP,S,A,O} <: ConstrainPOMDPWrapper{P,S,A,O}
     pomdp::P
     avoid_region::Vector{Float64}  # [xmin, xmax, ymin, ymax]
     cost_budget::Float64
+    init_bounds::RoombaCPOMDPInitBounds
 end
 
-function RoombaCPOMDP(pomdp::P; avoid_region::Vector{Float64}=[-5., 5, -2, 2], cost_budget::Float64=0.5) where {P<:RoombaPOMDP}
-    return RoombaCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp, avoid_region, cost_budget)
+function RoombaCPOMDP(pomdp::P; avoid_region::Vector{Float64}=[-5., 5, -5, 0], cost_budget::Float64=0.5,
+    init_bounds::RoombaCPOMDPInitBounds=RoombaCPOMDPInitBounds(-25.,-15.,-20.,5.,-π,π)) where {P<:RoombaPOMDP}
+    return RoombaCPOMDP{P, statetype(pomdp), actiontype(pomdp), obstype(pomdp)}(pomdp, avoid_region, cost_budget, init_bounds)
 end
 
+POMDPs.initialstate(p::RoombaCPOMDP) = p.init_bounds
+function Base.rand(rng::AbstractRNG, d::RoombaCPOMDPInitBounds)
+    x = rand(rng)*(d.xmax-d.xmin)+d.xmin
+    y = rand(rng)*(d.ymax-d.ymin)+d.ymin
+    th = rand(rng)*(d.thmax-d.thmin)+d.thmin
+    return RoombaState(x, y, th, 0.0)
+end
 in_avoid_region(cpomdp::RoombaCPOMDP, s::RoombaState) = cpomdp.avoid_region[1] <= s.x <= cpomdp.avoid_region[2] && cpomdp.avoid_region[3] <= s.y <= cpomdp.avoid_region[4]
 
 # New cost function is defined for a certain region that the robot is not allowed to enter
