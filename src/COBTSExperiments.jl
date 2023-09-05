@@ -21,7 +21,7 @@ using POMDPTools
 
 
 using CPOMDPs
-import CPOMDPs: costs, costs_limit, n_costs, terminate, reset!
+import CPOMDPs: costs, costs_limit, n_costs, terminate, reset!, update_option!
 import MCTS: node_tag
 
 # models 
@@ -31,6 +31,7 @@ export
     LightDarkNew, 
     LightDarkCPOMDP,
     RoombaCPOMDP,
+    RoombaCPOMDPInitBounds,
     CNav, 
     zeroV_trueC
 include("cpomdps/cnav.jl")

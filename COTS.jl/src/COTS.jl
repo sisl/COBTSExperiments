@@ -40,7 +40,8 @@ export
     COBTSBudgetUpdateWrapper,
     updater,
     update,
-    initialize_belief
+    initialize_belief,
+    OptionsUpdateWrapper
 include("cobts.jl")
 
 export

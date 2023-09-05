@@ -182,10 +182,18 @@ function simulate(dpw::COTSPlanner, snode::Int, d::Int, budget::Vector{Float64})
         # run option
         sp, r, c = @gen(:sp, :r, :c)(dpw.mdp, s, first(action_info(a, s)), dpw.rng)
         while !rand(dpw.rng, terminate(a, sp)) && d-num_steps >= 0 && !isterminal(dpw.mdp, sp)
-            sp, r_add, c_add = @gen(:sp, :r, :c)(dpw.mdp, sp, first(action_info(a, sp)), dpw.rng)
+            ll_action = first(action_info(a, sp))
+            if dpw.mdp isa GenerativeBeliefCMDP
+                spp, r_add, c_add, o = POMDPs.gen(dpw.mdp, sp, ll_action, dpw.rng)
+                update_option!(a, sp, ll_action, o)
+                sp = spp
+            else
+                sp, r_add, c_add = @gen(:sp, :r, :c)(dpw.mdp, sp, ll_action, dpw.rng)
+            end
             r += r_add*discount(dpw.mdp)^num_steps
             c += c_add*discount(dpw.mdp)^num_steps
             num_steps += 1
+            sp = spp
         end
 
         # add result through tree

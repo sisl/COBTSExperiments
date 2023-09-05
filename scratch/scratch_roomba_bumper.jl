@@ -16,28 +16,40 @@ using D3Trees
 using Plots
 using Statistics
 
+Random.seed!(4) # debug seed 2, 3
+
 problem = "discrete"
 sensor = Bumper() # Bumper() or Lidar()
 vs = [0, 1, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
+v_noise_coefficient = 0.25 #1.0
+om_noise_coefficient = 0.02 #0.5
+v_max = maximum(vs) + v_noise_coefficient/2 # allow PF to hit maximum target noise
+om_max = maximum(oms) + om_noise_coefficient/2
 pomdp = RoombaPOMDP(sensor=sensor,
-                    mdp=RoombaMDP(v_max=maximum(vs), om_max=maximum(oms),config=4, aspace=RoombaActSpace))
-cpomdp = RoombaCPOMDP(pomdp, cost_budget=1000.)
+                    mdp=RoombaMDP(v_max=v_max, om_max=om_max,config=4, 
+                    aspace=RoombaActSpace, 
+                    stairs_penalty=-100.0, goal_reward=10., 
+                    contact_pen=0.,time_pen=0.05))
+cpomdp = RoombaCPOMDP(pomdp, cost_budget=1000.,
+    #init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2),
+    init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-4.5,4.5,π/2,π/2),
+    )
 
-options = [GreedyGoToGoal(cpomdp;max_steps=20), GreedyGoToGoal(cpomdp;max_steps=40),
-    SafeGoToGoal(cpomdp;max_steps=20), SafeGoToGoal(cpomdp;max_steps=20),
-    TurnThenGo(cpomdp;turn_steps=0,max_steps=10), TurnThenGo(cpomdp;turn_steps=2,max_steps=10),
-    TurnThenGo(cpomdp;turn_steps=-2,max_steps=10), TurnThenGo(cpomdp;turn_steps=4,max_steps=10)]
+options = [GreedyGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #GreedyGoToGoal(cpomdp;max_steps=20),
+    #SafeGoToGoal(cpomdp;max_steps=40), SafeGoToGoal(cpomdp;max_steps=20),
+    TurnThenGo(cpomdp;turn_steps=0,max_steps=40), TurnThenGo(cpomdp;turn_steps=2,max_steps=40),
+    TurnThenGo(cpomdp;turn_steps=-2,max_steps=40), TurnThenGo(cpomdp;turn_steps=4,max_steps=40)]
     
 num_particles = 10000
-v_noise_coefficient = 1.0
-om_noise_coefficient = 0.5
 
-belief_updater = RoombaParticleFilter(cpomdp.pomdp, num_particles, v_noise_coefficient, om_noise_coefficient);
+
+belief_updater = RoombaParticleFilter(cpomdp.pomdp, 
+    num_particles, v_noise_coefficient, om_noise_coefficient);
 # belief_updater = BootstrapFilter(cpomdp, num_particles)
 max_steps = 100
-check_ts = [] # [1,30] # time steps to check tree and lambda history
+check_ts = [1, 6] # [1,30] # time steps to check tree and lambda history
 run_policy = 3 # [1 = CPOMCPOW, 2 = CPFT-DPW, 3=COBETS]
 
 ### CPOMCPOW policy p
@@ -86,7 +98,8 @@ elseif run_policy == 2
         :nu => 0.,
         :alpha_schedule => CMCTS.ConstantAlphaSchedule(1.),
     )
-    search_updater = RoombaParticleFilter(cpomdp.pomdp, 30, v_noise_coefficient, om_noise_coefficient)
+    search_updater = RoombaParticleFilter(cpomdp.pomdp, 30, v_noise_coefficient, om_noise_coefficient, 
+        resamper=ParticleDeathResampler())
 #    search_updater = BootstrapFilter(cpomdp, 30)
     solver = BeliefCMCTSSolver(
         CDPWSolver(;cpft_kwargs...), search_updater;
@@ -121,13 +134,10 @@ elseif run_policy == 3
         COTSSolver(;cobts_kwargs...), search_updater;
         exact_rewards=true)
     p = solve(solver, cpomdp)
+    belief_updater = OptionsUpdateWrapper(belief_updater, p) # external action wrapper
 else
     error("Not Implemented")
 end
-
-
-# first seed the environment
-Random.seed!(2)
 
 # run the simulation
 c = @GtkCanvas()
@@ -138,7 +148,7 @@ if 1 in check_ts
 end
 hl_action = nothing
 for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_steps))
-#    @infiltrate
+    @infiltrate false
     (p isa OptionsPolicy) && (global hl_action = low_level(p))
 
     if p.solver.tree_in_info && p.solver.search_progress_info
@@ -194,4 +204,5 @@ for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_
     end
     show(c)
     sleep(0.1) # to slow down the simulation
+    @infiltrate (t in check_ts)
 end

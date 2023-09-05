@@ -7,21 +7,34 @@ mutable struct TurnThenGo{P<:RoombaCPOMDP} <: LowLevelPolicy
     turn_steps::Int # number of turn steps to take (+ for cw, - for ccw)
     max_std::Vector{Float64} # [std_x,std_y] below which to terminate
     max_steps::Int # number of option steps above which to terminate
+    v::Float64
+    om::Float64
     steps::Int # number of steps taken in option
+    bump::Bool
 end
-TurnThenGo(cpomdp::P; turn_steps = 0, max_std = [0.3, 0.3], max_steps = 10) where {P<:RoombaCPOMDP} = TurnThenGo{P}(cpomdp, turn_steps, max_std, max_steps, 0)
+TurnThenGo(cpomdp::P; turn_steps = 0, max_std = [0.3, 0.3], max_steps = 10, v=3., om=π/2) where {P<:RoombaCPOMDP} = TurnThenGo{P}(cpomdp, turn_steps, max_std, max_steps, v, om, 0, false)
 function POMDPTools.action_info(p::TurnThenGo, b)
-    if p.steps <= abs(p.turn_steps) 
-        om_max = p.problem.pomdp.mdp.om_max
-        action = RoombaAct(0,sign(p.turn_steps)*om_max)
+    if p.steps < abs(p.turn_steps) 
+        action = RoombaAct(0,sign(p.turn_steps)*p.om)
     else
-        action = RoombaAct(p.problem.pomdp.mdp.v_max,0)
+        action = RoombaAct(p.v,0)
     end
     p.steps += 1
     return action, (;)
 end
-terminate(p::TurnThenGo, b) = Deterministic(all(stats(b)[2][1:2] .<= p.max_std) || p.steps >= p.max_steps)
-reset!(p::TurnThenGo) = (p.steps = 0)
+function terminate(p::TurnThenGo, b) 
+    std_met = all(stats(b)[2][1:2] .<= p.max_std)
+    max_steps = (p.steps >= p.max_steps)
+    bump_met = p.bump && (p.steps >= abs(p.turn_steps)+3) # had enough time to turn away from wall
+    return Deterministic(std_met || max_steps || bump_met)
+end 
+function reset!(p::TurnThenGo) 
+    p.steps = 0
+    p.bump = false
+end
+function update_option!(p::TurnThenGo, b, a, o)
+    o && (p.bump = true)
+end
 node_tag(p::TurnThenGo) = "TurnThenGo($(p.turn_steps), $(p.max_steps))"
 
 # Greedy Go To Goal Option
@@ -30,22 +43,28 @@ mutable struct GreedyGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
     max_std::Vector # [std_x,std_y] above which to terminate
     max_steps::Int # number of option steps above which to terminate
     steps::Int # number of steps taken in option
+    steps_at_wall::Int
 end
-GreedyGoToGoal(cpomdp::P; max_std = [20.0, 20.0], max_steps = 40) where {P<:RoombaCPOMDP} = GreedyGoToGoal{P}(cpomdp, max_std, max_steps, 0)
+GreedyGoToGoal(cpomdp::P; max_std = [20.0, 20.0], max_steps = 40) where {P<:RoombaCPOMDP} = GreedyGoToGoal{P}(cpomdp, max_std, max_steps, 0, 0)
+
+distance(s, goal) = norm(s[1:2] - goal)
 function POMDPTools.action_info(p::GreedyGoToGoal, b)
     s = stats(b)[1] # means
-    if s[1] < -15
-        goal_vec = [-15., 0] #waypoint
+    
+    waypoints = [[-15., 0], [12,0]]
+    if s[1] < waypoints[1][1] && distance(s,waypoints[1]) > 3
+        goal_vec = waypoints[1]
+    elseif s[1] < waypoints[2][1] && distance(s,waypoints[2]) > 3
+        goal_vec = waypoints[2]
     else
-        goal_vec = get_goal_xy(p.problem.pomdp)
+        goal_vec = get_goal_xy(p.problem.pomdp) + [1,-1]
     end
+    @infiltrate false
     action = navigate2D(p.problem, b, goal_vec)
-    dist = norm([s[1], s[2]] - goal_vec)
+    dist = distance(s,goal_vec)
     p.steps += 1
     return action, (;goal=goal_vec, distance=dist)
 end
-terminate(p::GreedyGoToGoal, b) = Deterministic(any(stats(b)[2][1:2] .>= p.max_std) || p.steps >= p.max_steps)
-reset!(p::GreedyGoToGoal) = (p.steps = 0)
 node_tag(p::GreedyGoToGoal) = "GreedyGoToGoal($(p.max_steps))"
 
 # Safe Go To Goal Option
@@ -54,8 +73,9 @@ mutable struct SafeGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
     max_std::Vector # [std_x,std_y] above which to terminate
     max_steps::Int # number of option steps above which to terminate
     steps::Int # number of steps taken in option
+    steps_at_wall::Int
 end
-SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40) where {P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, max_std, max_steps, 0)
+SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40) where {P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, max_std, max_steps, 0, 0)
 function POMDPTools.action_info(p::SafeGoToGoal, b)
     s = stats(b)[1] # means
     if s[1] < -15
@@ -68,20 +88,39 @@ function POMDPTools.action_info(p::SafeGoToGoal, b)
     p.steps += 1
     return action, (;goal=goal_vec, distance=dist)
 end
-terminate(p::SafeGoToGoal, b) = Deterministic(any(stats(b)[2][1:2] .>= p.max_std) || p.steps >= p.max_steps)
-reset!(p::SafeGoToGoal) = (p.steps = 0)
 node_tag(p::SafeGoToGoal) = "SafeGoToGoal($(p.max_steps))"
+
+# go_to_goal termination, reseting, and updating
+const CRoombaGoToGoal = Union{GreedyGoToGoal,SafeGoToGoal}
+function terminate(p::CRoombaGoToGoal, b)
+    above_max_std = any(stats(b)[2][1:2] .>= p.max_std)
+    above_max_steps = p.steps >= p.max_steps
+    stuck_at_wall = p.steps > 5 && p.steps_at_wall > 3
+    @infiltrate false # stuck_at_wall
+    return Deterministic( above_max_std || above_max_steps || stuck_at_wall)
+end
+function reset!(p::CRoombaGoToGoal)
+    p.steps = 0
+    p.steps_at_wall = 0
+end
+function update_option!(p::CRoombaGoToGoal, b, a, o)
+    if (o isa Bool) 
+        o ? p.steps_at_wall += 1 : p.steps_at_wall = 0
+    end
+end
+
 
 # Spin Option
 mutable struct Spin{P<:RoombaCPOMDP} <: LowLevelPolicy
     problem::P
     max_std::Vector # [std_x,std_y] below which to terminate
     max_steps::Int # number of option steps above which to terminate
+    om::Float64
     steps::Int # number of steps taken in option
 end
-Spin(cpomdp::P; max_std = [0.3, 0.3], max_steps = 10) where {P<:RoombaCPOMDP} = Spin{P}(cpomdp, max_std, max_steps, 0)
+Spin(cpomdp::P; max_std = [0.3, 0.3], max_steps = 10, om=π/2) where {P<:RoombaCPOMDP} = Spin{P}(cpomdp, max_std, max_steps, om, 0)
 function POMDPTools.action_info(p::Spin, b)
-    action = RoombaAct(0,p.problem.pomdp.mdp.om_max)
+    action = RoombaAct(0,p.om)
     p.steps += 1
     return action, (;)
 end
@@ -94,12 +133,14 @@ mutable struct BigSpin{P<:RoombaCPOMDP} <: LowLevelPolicy
     turn_every::Int # steps to turn on
     max_std::Vector # [std_x,std_y] below which to terminate
     max_steps::Int # number of option steps above which to terminate
+    v::Float64
+    om::Float64
     steps::Int # number of steps taken in option
 end
-BigSpin(cpomdp::P; turn_every=3, max_std = [0.3, 0.3], max_steps = 10) where {P<:RoombaCPOMDP} = BigSpin{P}(cpomdp, turn_every, max_std, max_steps, 0)
+BigSpin(cpomdp::P; turn_every=3, max_std = [0.3, 0.3], max_steps = 10, v=3., om=π/2) where {P<:RoombaCPOMDP} = BigSpin{P}(cpomdp, turn_every, max_std, max_steps, v, om, 0)
 function POMDPTools.action_info(p::BigSpin, b)
-    speed = p.problem.pomdp.mdp.v_max
-    turn = p.steps % p.turn_every == 0 ? p.problem.pomdp.mdp.om_max : 0.
+    speed = p.v
+    turn = p.steps % p.turn_every == 0 ? p.om : 0.
     action = RoombaAct(speed,turn)
     p.steps += 1
     return action, (;)

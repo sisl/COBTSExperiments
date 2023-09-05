@@ -18,7 +18,7 @@ using Statistics
 
 problem = "continuous"
 sensor = Lidar() # Bumper() or Lidar()
-vs = [0, 1, 3]
+vs = [0, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
 pomdp = RoombaPOMDP(sensor=sensor,
@@ -126,7 +126,7 @@ end
 
 
 # first seed the environment
-Random.seed!(3)
+Random.seed!(1)
 
 # run the simulation
 c = @GtkCanvas()

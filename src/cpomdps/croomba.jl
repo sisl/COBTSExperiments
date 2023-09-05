@@ -42,6 +42,7 @@ function Base.rand(rng::AbstractRNG, d::RoombaCPOMDPInitBounds)
     x = rand(rng)*(d.xmax-d.xmin)+d.xmin
     y = rand(rng)*(d.ymax-d.ymin)+d.ymin
     th = rand(rng)*(d.thmax-d.thmin)+d.thmin
+    th = RoombaPOMDPs.wrap_to_pi(th)
     return RoombaState(x, y, th, 0.0)
 end
 in_avoid_region(cpomdp::RoombaCPOMDP, s::RoombaState) = cpomdp.avoid_region[1] <= s.x <= cpomdp.avoid_region[2] && cpomdp.avoid_region[3] <= s.y <= cpomdp.avoid_region[4]
@@ -114,12 +115,13 @@ function stats(b::Union{ParticleCollection{S}, WeightedParticleBelief{S}}) where
     locs = [[s.x, s.y, s.theta] for s in particles(b)]
     m_x = dot(ws, [loc[1] for loc in locs])
     m_y = dot(ws, [loc[2] for loc in locs])
-    m_theta = dot(ws, [loc[3] for loc in locs])
+    m_theta = get_mean_th(ws, [loc[3] for loc in locs])
+    # m_theta = dot(ws, [loc[3] for loc in locs])
     m = [m_x, m_y, m_theta]
     diffs = [loc .- m for loc in locs]
     var_x = dot(ws, [diff[1]^2 for diff in diffs])
     var_y = dot(ws, [diff[2]^2 for diff in diffs])
-    var_theta = dot(ws, [diff[3]^2 for diff in diffs])
+    var_theta = dot(ws, [RoombaPOMDPs.wrap_to_pi.(diff[3])^2 for diff in diffs]) # var_theta isbs
     var = [var_x, var_y, var_theta]
     return m, sqrt.(var)
 end
@@ -127,4 +129,14 @@ end
 function node_tag(b::Union{ParticleCollection{S},WeightedParticleBelief{S}}) where {S<:RoombaState}
     y, std = stats(b)
     return @sprintf "RoombaParticles(%.3f±%.3f,%.3f±%.3f,%.3f±%.3f)" y[1] std[1] y[2] std[2] y[3] std[3]
+end
+
+# get mean th by using polar coordinates
+function get_mean_th(ws, ths)
+    xs = cos.(ths)
+    ys = sin.(ths)
+    mx = dot(ws,xs)
+    my = dot(ws,ys)
+    th = atan(my,mx)
+    return RoombaPOMDPs.wrap_to_pi(th)
 end
