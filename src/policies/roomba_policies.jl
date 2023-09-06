@@ -4,7 +4,7 @@
 ## Turn then go
 mutable struct TurnThenGo{P<:RoombaCPOMDP} <: LowLevelPolicy
     problem::P
-    turn_steps::Int # number of turn steps to take (+ for cw, - for ccw)
+    turn_steps::Int # number of turn steps to take (+ for ccw, - for cw)
     max_std::Vector{Float64} # [std_x,std_y] below which to terminate
     max_steps::Int # number of option steps above which to terminate
     v::Float64
@@ -13,7 +13,7 @@ mutable struct TurnThenGo{P<:RoombaCPOMDP} <: LowLevelPolicy
     bump::Bool
 end
 TurnThenGo(cpomdp::P; turn_steps = 0, max_std = [0.3, 0.3], max_steps = 10, v=3., om=π/2) where {P<:RoombaCPOMDP} = TurnThenGo{P}(cpomdp, turn_steps, max_std, max_steps, v, om, 0, false)
-function POMDPTools.action_info(p::TurnThenGo, b)
+function POMDPTools.action_info(p::TurnThenGo, b)    
     if p.steps < abs(p.turn_steps) 
         action = RoombaAct(0,sign(p.turn_steps)*p.om)
     else
@@ -42,25 +42,34 @@ mutable struct GreedyGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
     problem::P
     max_std::Vector # [std_x,std_y] above which to terminate
     max_steps::Int # number of option steps above which to terminate
+    samples::Int # number of samples of belief to take for distance calculations
     steps::Int # number of steps taken in option
     steps_at_wall::Int
 end
-GreedyGoToGoal(cpomdp::P; max_std = [20.0, 20.0], max_steps = 40) where {P<:RoombaCPOMDP} = GreedyGoToGoal{P}(cpomdp, max_std, max_steps, 0, 0)
+GreedyGoToGoal(cpomdp::P; max_std = [20.0, 20.0], max_steps = 40, samples=1) where {
+    P<:RoombaCPOMDP} = GreedyGoToGoal{P}(cpomdp, max_std, max_steps, samples, 0, 0)
 
 distance(s, goal) = norm(s[1:2] - goal)
 function POMDPTools.action_info(p::GreedyGoToGoal, b)
-    s = stats(b)[1] # means
+    
+    s = stats(b)[1]
+    if p.samples == 1
+        ss = [RoombaState(s..., 0)] # means
+    else
+        ss = [rand(b) for i in 1:p.samples] # take random states
+    end
+
     
     waypoints = [[-15., 0], [12,0]]
     if s[1] < waypoints[1][1] && distance(s,waypoints[1]) > 3
         goal_vec = waypoints[1]
-    elseif s[1] < waypoints[2][1] && distance(s,waypoints[2]) > 3
+    elseif s[1] < waypoints[2][1] && distance(s,waypoints[2]) > 4
         goal_vec = waypoints[2]
     else
         goal_vec = get_goal_xy(p.problem.pomdp) + [1,-1]
     end
-    @infiltrate false
-    action = navigate2D(p.problem, b, goal_vec)
+
+    action = navigate2D(p.problem, ss, goal_vec)
     dist = distance(s,goal_vec)
     p.steps += 1
     return action, (;goal=goal_vec, distance=dist)
@@ -202,9 +211,8 @@ function adjust_angle(angle, clockwise=true)
     end
 end
 
-function navigate2Dsafe(problem::RoombaCPOMDP, b, goal::Vector{Float64})
-    s = stats(b)[1]
-    s = RoombaState(s..., 0)
+function navigate2Dsafe(problem::RoombaCPOMDP, ss::Vector{RoombaState}, goal::Vector{Float64})
+    s = ss[1]
     best_action = RoombaAct(0, 0)
     best_dist = Inf
     for a in actions(problem)
@@ -236,9 +244,8 @@ function navigate2Drobust(problem::RoombaCPOMDP, b, goal::Vector{Float64}; n_sam
 end
 
 # navigate2D function greedily navigates the robot towards `goal`
-function navigate2D(problem::RoombaCPOMDP, b, goal::Vector{Float64})
-    s = stats(b)[1]
-    s = RoombaState(s..., 0)
+function navigate2D(problem::RoombaCPOMDP, ss::Vector{RoombaState}, goal::Vector{Float64})
+    s = ss[1]
     best_action = RoombaAct(0, 0)
     best_dist = Inf
     for a in actions(problem)

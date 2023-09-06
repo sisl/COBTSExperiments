@@ -16,15 +16,15 @@ using D3Trees
 using Plots
 using Statistics
 
-Random.seed!(4) # debug seed 2, 3
+Random.seed!(2) # debug seed 2, 3
 
 problem = "discrete"
-sensor = Bumper() # Bumper() or Lidar()
+sensor = FrontBumper(π/2-0.01) # Bumper() or Lidar()
 vs = [0, 1, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
-v_noise_coefficient = 0.25 #1.0
-om_noise_coefficient = 0.02 #0.5
+v_noise_coefficient = 0.2 #1.0
+om_noise_coefficient = 0.01 #0.5
 v_max = maximum(vs) + v_noise_coefficient/2 # allow PF to hit maximum target noise
 om_max = maximum(oms) + om_noise_coefficient/2
 pomdp = RoombaPOMDP(sensor=sensor,
@@ -33,14 +33,16 @@ pomdp = RoombaPOMDP(sensor=sensor,
                     stairs_penalty=-100.0, goal_reward=10., 
                     contact_pen=0.,time_pen=0.05))
 cpomdp = RoombaCPOMDP(pomdp, cost_budget=1000.,
-    #init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2),
-    init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-4.5,4.5,π/2,π/2),
+    #init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2), # general
+    #init_bounds=RoombaCPOMDPInitBounds(-24.,-16.,-19.,4.,π/2,3π/2), # target
+    init_bounds=RoombaCPOMDPInitBounds(-15.5,-15.5,-16.,-16.,0.,0.), # specific
     )
 
 options = [GreedyGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #GreedyGoToGoal(cpomdp;max_steps=20),
     #SafeGoToGoal(cpomdp;max_steps=40), SafeGoToGoal(cpomdp;max_steps=20),
     TurnThenGo(cpomdp;turn_steps=0,max_steps=40), TurnThenGo(cpomdp;turn_steps=2,max_steps=40),
-    TurnThenGo(cpomdp;turn_steps=-2,max_steps=40), TurnThenGo(cpomdp;turn_steps=4,max_steps=40)]
+    TurnThenGo(cpomdp;turn_steps=-2,max_steps=40), TurnThenGo(cpomdp;turn_steps=4,max_steps=40),
+    ]
     
 num_particles = 10000
 
@@ -49,7 +51,7 @@ belief_updater = RoombaParticleFilter(cpomdp.pomdp,
     num_particles, v_noise_coefficient, om_noise_coefficient);
 # belief_updater = BootstrapFilter(cpomdp, num_particles)
 max_steps = 100
-check_ts = [1, 6] # [1,30] # time steps to check tree and lambda history
+check_ts = collect(1:max_steps) #[1, 6] # [1,30] # time steps to check tree and lambda history
 run_policy = 3 # [1 = CPOMCPOW, 2 = CPFT-DPW, 3=COBETS]
 
 ### CPOMCPOW policy p
@@ -150,7 +152,7 @@ hl_action = nothing
 for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_steps))
     @infiltrate false
     (p isa OptionsPolicy) && (global hl_action = low_level(p))
-
+    plotted = false
     if p.solver.tree_in_info && p.solver.search_progress_info
         skip = false
         # extract tree
@@ -169,7 +171,7 @@ for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_
         if !skip
             # plot tree
             inchrome(D3Tree(tree; lambda=lambdas[end]))
-            
+            plotted = true
             # plot lambdas
             plt = plot(1:length(lambdas), transpose(hcat(lambdas...)))
             saveloc="scratch/figs/roomba_$(problem)_lambda_step$(t).png"
@@ -204,5 +206,5 @@ for (t, step) in enumerate(stepthrough(cpomdp, p, belief_updater, max_steps=max_
     end
     show(c)
     sleep(0.1) # to slow down the simulation
-    @infiltrate (t in check_ts)
+    @infiltrate (t in check_ts) && plotted
 end
