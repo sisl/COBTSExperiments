@@ -48,59 +48,35 @@ mutable struct GreedyGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
 end
 GreedyGoToGoal(cpomdp::P; max_std = [20.0, 20.0], max_steps = 40, samples=1) where {
     P<:RoombaCPOMDP} = GreedyGoToGoal{P}(cpomdp, max_std, max_steps, samples, 0, 0)
-
-distance(s, goal) = norm(s[1:2] - goal)
-function POMDPTools.action_info(p::GreedyGoToGoal, b)
-    
-    s = stats(b)[1]
-    if p.samples == 1
-        ss = [RoombaState(s..., 0)] # means
-    else
-        ss = [rand(b) for i in 1:p.samples] # take random states
-    end
-
-    
-    waypoints = [[-15., 0], [12,0]]
-    if s[1] < waypoints[1][1] && distance(s,waypoints[1]) > 3
-        goal_vec = waypoints[1]
-    elseif s[1] < waypoints[2][1] && distance(s,waypoints[2]) > 4
-        goal_vec = waypoints[2]
-    else
-        goal_vec = get_goal_xy(p.problem.pomdp) + [1,-1]
-    end
-
-    action = navigate2D(p.problem, ss, goal_vec)
-    dist = distance(s,goal_vec)
-    p.steps += 1
-    return action, (;goal=goal_vec, distance=dist)
-end
 node_tag(p::GreedyGoToGoal) = "GreedyGoToGoal($(p.max_steps))"
 
 # Safe Go To Goal Option
 mutable struct SafeGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
     problem::P
+    barrier_penalty::Float64 # factor by which to penalize avoid region distances
     max_std::Vector # [std_x,std_y] above which to terminate
     max_steps::Int # number of option steps above which to terminate
+    samples::Int # number of samples of belief to take for distance calculations  
     steps::Int # number of steps taken in option
     steps_at_wall::Int
 end
-SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40) where {P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, max_std, max_steps, 0, 0)
-function POMDPTools.action_info(p::SafeGoToGoal, b)
-    s = stats(b)[1] # means
-    if s[1] < -15
-        goal_vec = [-15., 0]
-    else
-        goal_vec = get_goal_xy(p.problem.pomdp)
-    end
-    action = navigate2Dsafe(p.problem, b, goal_vec)
-    dist = norm([s[1], s[2]] - goal_vec)
-    p.steps += 1
-    return action, (;goal=goal_vec, distance=dist)
-end
+SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40, barrier_penalty=10., samples=1) where {
+    P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, barrier_penalty, max_std, max_steps, samples, 0, 0)
 node_tag(p::SafeGoToGoal) = "SafeGoToGoal($(p.max_steps))"
 
 # go_to_goal termination, reseting, and updating
 const CRoombaGoToGoal = Union{GreedyGoToGoal,SafeGoToGoal}
+function POMDPTools.action_info(p::CRoombaGoToGoal, b)
+    if p.samples == 1
+        s = stats(b)[1]
+        ss = [RoombaState(s..., 0)] # take mean state
+    else
+        ss = [rand(b) for i in 1:p.samples] # take random states
+    end
+    action, distance = navigate(p, ss)
+    p.steps += 1
+    return action, (;distance=distance)
+end
 function terminate(p::CRoombaGoToGoal, b)
     above_max_std = any(stats(b)[2][1:2] .>= p.max_std)
     above_max_steps = p.steps >= p.max_steps
@@ -118,6 +94,60 @@ function update_option!(p::CRoombaGoToGoal, b, a, o)
     end
 end
 
+# navigation helpers
+distance(s::Vector{Float64}, goal) = norm(s - goal)
+distance(s::RoombaState, goal) = distance(s[1:2], goal)
+
+function distance_function(p::RoombaCPOMDP, s)
+    """Compute the distance to the goal in the base POMDP"""
+    @assert p.pomdp.mdp.config==4 "distance for wrong config"
+    x, y, th = s[1:3]
+    # come up with a distance map to goal
+    # method 0 uses waypoints:
+    waypoints = [[-15., 0], [12,0]]
+    dist = 0.
+    goal_vec = get_goal_xy(p.pomdp) + [1,-2.]
+    if x >= waypoints[2][1] || distance(s,waypoints[2]) <= 4
+        # close to goal
+        dist += distance(s, goal_vec)
+        #dist += abs(wrap_to_pi(th+π/2))/π # get it to turn down
+    else
+        # past waypoint 2
+        dist += distance(waypoints[2], goal_vec)
+        if x >= waypoints[1][1] || distance(s,waypoints[1]) <= 3
+            # between waypoints 1 and 2
+            dist += distance(s, waypoints[2])
+            #dist += abs(wrap_to_pi(th))/π # get it to turn right
+        else 
+            # before waypoint 1
+            dist += distance(waypoints[1], waypoints[2])
+            dist += distance(s, waypoints[1])
+            #dist += abs(wrap_to_pi(th-π/4))/π # get it to turn upish
+        end        
+    end
+    return dist
+end
+distance_function(p::GreedyGoToGoal, s::RoombaState) = distance_function(p.problem, s)
+distance_function(p::SafeGoToGoal, s::RoombaState) = distance_function(p.problem, s) + p.barrier_penalty * in_avoid_region(p.problem, s)
+
+function navigate(p::CRoombaGoToGoal, ss::Vector{RoombaState})
+    """
+    Compute the action that minimizes the distance from the mean next state to the goal
+    ss is a vector of roomba states to average over
+    """
+    best_action = RoombaAct(0, 0)
+    best_dist = Inf
+    for a in actions(p.problem)
+        sps = [rand(transition(p.problem, s, a)) for s in ss]  # not quite random, in fact deterministic
+        distances = [distance_function(p,s) for s in sps]
+        dist = Statistics.mean(distances)
+        if dist < best_dist
+            best_dist = dist
+            best_action = a
+        end
+    end
+    return best_action, best_dist
+end
 
 # Spin Option
 mutable struct Spin{P<:RoombaCPOMDP} <: LowLevelPolicy

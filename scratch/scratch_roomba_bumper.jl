@@ -38,8 +38,9 @@ cpomdp = RoombaCPOMDP(pomdp, cost_budget=1000.,
     init_bounds=RoombaCPOMDPInitBounds(-15.5,-15.5,-16.,-16.,0.,0.), # specific
     )
 
-options = [GreedyGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #GreedyGoToGoal(cpomdp;max_steps=20),
-    #SafeGoToGoal(cpomdp;max_steps=40), SafeGoToGoal(cpomdp;max_steps=20),
+options = [
+    #GreedyGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #GreedyGoToGoal(cpomdp;max_steps=20),
+    SafeGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #SafeGoToGoal(cpomdp;max_steps=20),
     TurnThenGo(cpomdp;turn_steps=0,max_steps=40), TurnThenGo(cpomdp;turn_steps=2,max_steps=40),
     TurnThenGo(cpomdp;turn_steps=-2,max_steps=40), TurnThenGo(cpomdp;turn_steps=4,max_steps=40),
     ]
