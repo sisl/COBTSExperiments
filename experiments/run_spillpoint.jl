@@ -8,6 +8,7 @@ using ProgressMeter
 using ParticleFilters
 using SpillpointPOMDP
 using POMDPs
+using D3Trees
 
 # experiments to run
 experiments = Dict(
@@ -20,8 +21,8 @@ nsims = 10
 
 # same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e2), 
-        :k_state => 10., # 0.1, # ld experiments use 5
-        :alpha_state => 0.3, #0.5, # ld experiments use 1/15
+        :k_state => 5., # 0.1, # ld experiments use 5
+        :alpha_state => 0.25, #0.5, # ld experiments use 1/15
         :enable_action_pw=>false,
         :depth => 25,
         :exploration_constant=>30., # ld experiments use 90
@@ -32,8 +33,8 @@ kwargs = Dict(:n_iterations=>Int(1e2),
 
 as = 10000.
 max_steps = 25
-search_pf_size = Int(10)
-cpomdp_pf_size = Int(1e4)
+search_pf_size = Int(1e2)
+cpomdp_pf_size = Int(1e2)
 
 
 # CPOMCPOW kwargs 
@@ -50,20 +51,17 @@ cpomcpow_kwargs = Dict(
 )
 
 # options
-cpomdp = SpillpointInjectionCPOMDP(constraint_budget=0.001)
+cpomdp = SpillpointInjectionCPOMDP(constraint_budget=1e-6)
 m = cpomdp.pomdp
 options = [
     SingleActionWrapper((:stop, 0.0)),
+    [SingleActionWrapper((:inject, val)) for val in m.injection_rates]...,
     [SingleActionWrapper((:observe, config)) for config in m.obs_configurations]...,
-    InferGeology(cpomdp, 0.01, [(:observe,  m.obs_configurations[1])]),
-    InferGeology(cpomdp, 0.05, [(:observe,  m.obs_configurations[1])]),
-    InferGeology(cpomdp, 0.1, [(:observe,  m.obs_configurations[1])]),
-    InferGeology(cpomdp, 0.01, [(:observe,  m.obs_configurations[1]), (:observe,  m.obs_configurations[1])]),
-    InferGeology(cpomdp, 0.05, [(:observe,  m.obs_configurations[1]), (:observe,  m.obs_configurations[1])]),
-    InferGeology(cpomdp, 0.1, [(:observe,  m.obs_configurations[1]), (:observe,  m.obs_configurations[1])]),
-    InferGeology(cpomdp, 0.01, [(:observe,  m.obs_configurations[2])]),
-    InferGeology(cpomdp, 0.05, [(:observe,  m.obs_configurations[2])]),
-    InferGeology(cpomdp, 0.1, [(:observe,  m.obs_configurations[2])]),
+    InferGeology(cpomdp, [(:observe,  m.obs_configurations[1])]),
+    InferGeology(cpomdp, [(:observe,  m.obs_configurations[1]), (:observe,  m.obs_configurations[1])]),
+    InferGeology(cpomdp, [(:observe,  m.obs_configurations[2])]),
+    InferGeology(cpomdp, [(:observe,  m.obs_configurations[2]), (:observe,  m.obs_configurations[2])]),
+    InferGeology(cpomdp, [(:observe,  m.obs_configurations[1]), (:observe,  m.obs_configurations[2])]),
     SafeFill(cpomdp)    
 ]
 
@@ -79,6 +77,20 @@ default_up() = SpillpointPOMDP.SIRParticleFilter(
 	bandwidth_scale=.5,
 	max_cpu_time=60
 )
+
+cobts_updater() = SpillpointPOMDP.SIRParticleFilter(
+	model=m, 
+	N=search_pf_size, 
+	state2param=SpillpointPOMDP.state2params, 
+	param2state=SpillpointPOMDP.params2state,
+	N_samples_before_resample=50,
+    clampfn=SpillpointPOMDP.clamp_distribution,
+	prior=SpillpointPOMDP.param_distribution(initialstate(m)),
+	elite_frac=0.3,
+	bandwidth_scale=.5,
+	max_cpu_time=1
+)
+
 
 
 function COTS.options(sol::COTSSolver, mdp::GenerativeBeliefCMDP{P, U, B, A}, b) where {P <: SpillpointInjectionCPOMDP, U, B, A}
@@ -99,45 +111,47 @@ results = Dict(k=>LightExperimentResults(nsims) for (k,v) in experiments if v)
 # CPFT-Infogain
 exp = "cpft-infogain"
 if experiments[exp]
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
+        println("Experiment $exp, sim $i")
         infogain_kwargs = copy(kwargs)
         infogain_kwargs[:estimate_value] = QMDP_V
         rng = MersenneTwister(rng_stseed+i)
-        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        search_updater = cobts_updater() #BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
             CDPWSolver(;infogain_kwargs..., 
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
                 return_safe_action=true,
             ), search_updater;
-            exact_rewards=true)
+            exact_rewards=false)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(default_up(), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
-        println("Results for $(exp)")
-        print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
     end
+    println("Results for $(exp)")
+    print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPFT-No Heuristic
 exp = "cpft-noheur"
 if experiments[exp]
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
+        println("Experiment $exp, sim $i")
         rng = MersenneTwister(rng_stseed+i)
-        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        search_updater = cobts_updater() # BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
             CDPWSolver(;kwargs...,
                 rng = rng,
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
                 return_safe_action=true,
             ), search_updater;
-            exact_rewards=true)
+            exact_rewards=false)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(default_up(), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
-        println("Results for $(exp)")
-        print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
     end
+    println("Results for $(exp)")
+    print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
 end
 
 
@@ -145,37 +159,40 @@ end
 # COBTS
 exp = "cobts"
 if experiments[exp]
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
+        println("Experiment $exp, sim $i")
         rng = MersenneTwister(rng_stseed+i)
-        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        search_updater = cobts_updater() # BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
             COTSSolver(;kwargs..., 
                 rng = rng,
                 options = options,
                 alpha_schedule = COTS.ConstantAlphaSchedule(as),
                 return_safe_action=true,
+                estimate_value = QMDP_V,
             ), search_updater;
             exact_rewards=false) # TODO: Maybe switch back
         planner = solve(solver, cpomdp)
         updater = default_up()
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
-        println("Results for $(exp)")
-        print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
     end
+    println("Results for $(exp)")
+    print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPOMCPOW
 exp = "cpomcpow"
 if experiments[exp]
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
+        println("Experiment $exp, sim $i")
         rng = MersenneTwister(rng_stseed+i)
         solver = CPOMCPOWSolver(;cpomcpow_kwargs..., rng = rng)
         planner = solve(solver, cpomdp)
         updater = default_up()
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
-        println("Results for $(exp)")
-        print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
     end
+    println("Results for $(exp)")
+    print_and_save(results[exp], "results/spillpoint_$(exp)_$(nsims)sims.jld2") 
 end
 
 # Print and save

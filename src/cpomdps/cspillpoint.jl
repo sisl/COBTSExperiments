@@ -45,7 +45,7 @@ end
 
 CPOMDPs.costs(::SpillpointInjectionCPOMDP, s, a, sp) = [sp.v_exited - s.v_exited]
 
-function CPOMDPs.costs(m::GenerativeBeliefCMDP{P}, b, a) where {P <: SpillpointInjectionCPOMDP}
+function CPOMDPs.costs(m::GenerativeBeliefCMDP{P}, b::Union{ParticleCollection, WeightedParticleBelief, SIRParticleBelief{SpillpointInjectionState}}, a) where {P <: SpillpointInjectionCPOMDP}
     ss = [rand(b) for i=1:100]
     sps = [gen(m.cpomdp, s, a).sp for s in ss]
     return Statistics.mean([costs(m.cpomdp, s, a, sp) for (s,sp) in zip(ss, sps)])
@@ -63,13 +63,14 @@ min_reward(p::SpillpointInjectionCPOMDP) = minimum(p.pomdp.obs_rewards)
 QMDP_V(pomdp::SpillpointInjectionPOMDP, s::SpillpointInjectionState, args...) = 0.1*pomdp.trapped_reward*(
     SpillpointPOMDP.trap_capacity(s.m, s.sr, lb=s.v_trapped, ub=0.3, rel_tol=1e-2, abs_tol=1e-3) - s.v_trapped)
 QMDP_V(cpomdp, args...) = (QMDP_V(cpomdp.pomdp, args...), zeros(Float64, n_costs(cpomdp))) 
-function QMDP_V(p::CPOMDPs.GenerativeBeliefCMDP{P}, s::ParticleFilters.ParticleCollection{S}, args...) where {P<:SpillpointInjectionCPOMDP, S<:SpillpointInjectionState}
-    V = 0.
-    ws = weights(s)
-    for (part, w) in zip(particles(s),ws)
-        V += QMDP_V(p.cpomdp, part, args...)[1] * w
+function QMDP_V(p::CPOMDPs.GenerativeBeliefCMDP{P}, b::Union{SIRParticleBelief{S}, ParticleFilters.ParticleCollection{S}}, args...) where {P<:SpillpointInjectionCPOMDP, S<:SpillpointInjectionState}
+    remainings = []
+    for s in particles(b)
+        capacity = SpillpointPOMDP.trap_capacity(s.m, s.sr)
+        remaining = max(0, capacity - s.v_trapped - s.v_exited)
+        push!(remainings, remaining)
     end
-    V /= sum(ws)
-    return (V, zeros(Float64, n_costs(p.cpomdp))) # replaces old weight_sum(particle collections) that was 1 
 
+    V = p.cpomdp.pomdp.trapped_reward*0.9*minimum(remainings)
+    return (V, zeros(Float64, n_costs(p.cpomdp)))
 end
