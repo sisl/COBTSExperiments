@@ -47,6 +47,17 @@ function Base.rand(rng::AbstractRNG, d::RoombaCPOMDPInitBounds)
 end
 in_avoid_region(cpomdp::RoombaCPOMDP, s::RoombaState) = cpomdp.avoid_region[1] <= s.x <= cpomdp.avoid_region[2] && cpomdp.avoid_region[3] <= s.y <= cpomdp.avoid_region[4]
 
+function dist_boundary_avoid_region(cpomdp::RoombaCPOMDP, s::RoombaState)
+    """
+    Compute the minimum distance to the boundaries of the avoid region
+    g(x) < 0 if x is outside the avoid region/on boundary
+    g(x) >= 0 if x is inside the avoid region
+    """
+    x_min, x_max, y_min, y_max = cpomdp.avoid_region
+    g_x = min(x_max - s.x, s.x - x_min, y_max - s.y, s.y - y_min)
+    return g_x
+end
+
 # New cost function is defined for a certain region that the robot is not allowed to enter
 costs(cpomdp::RoombaCPOMDP, s::RoombaState, a::RoombaAct) = Float64[in_avoid_region(cpomdp, s)]
 

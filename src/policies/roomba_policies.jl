@@ -33,7 +33,7 @@ function reset!(p::TurnThenGo)
     p.bump = false
 end
 function update_option!(p::TurnThenGo, b, a, o)
-    o && (p.bump = true)
+    o ? p.bump = true : p.bump = false
 end
 node_tag(p::TurnThenGo) = "TurnThenGo($(p.turn_steps), $(p.max_steps))"
 
@@ -127,8 +127,27 @@ function distance_function(p::RoombaCPOMDP, s)
     end
     return dist
 end
+
 distance_function(p::GreedyGoToGoal, s::RoombaState) = distance_function(p.problem, s)
-distance_function(p::SafeGoToGoal, s::RoombaState) = distance_function(p.problem, s) + p.barrier_penalty * in_avoid_region(p.problem, s)
+# distance_function(p::SafeGoToGoal, s::RoombaState) = distance_function(p.problem, s) + p.barrier_penalty * in_avoid_region(p.problem, s)
+
+function distance_function(p::SafeGoToGoal, s::RoombaState)
+    barrier = "inverse"  # "log" or "inverse"
+    g_x = dist_boundary_avoid_region(p.problem, s)
+    if g_x >= 0
+        barrier_term = p.barrier_penalty  # large penalty if inside the avoid region
+    else
+        if barrier == "log"
+            barrier_term = -log(-g_x)  # log barrier function
+        elseif barrier == "inverse"
+            barrier_term = -1.0 / g_x  # inverse barrier function
+        else
+            error("Unknown barrier function (choose log or inverse)")
+        end
+    end
+    return distance_function(p.problem, s) + barrier_term
+end
+
 
 function navigate(p::CRoombaGoToGoal, ss::Vector{RoombaState})
     """

@@ -24,7 +24,7 @@ vs = [0, 1, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
 v_noise_coefficient = 0.2 #1.0
-om_noise_coefficient = 0.01 #0.5
+om_noise_coefficient = 0.05 #0.5
 v_max = maximum(vs) + v_noise_coefficient/2 # allow PF to hit maximum target noise
 om_max = maximum(oms) + om_noise_coefficient/2
 pomdp = RoombaPOMDP(sensor=sensor,
@@ -32,15 +32,15 @@ pomdp = RoombaPOMDP(sensor=sensor,
                     aspace=RoombaActSpace, 
                     stairs_penalty=-100.0, goal_reward=10., 
                     contact_pen=0.,time_pen=0.05))
-cpomdp = RoombaCPOMDP(pomdp, cost_budget=1000.,
-    #init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2), # general
-    #init_bounds=RoombaCPOMDPInitBounds(-24.,-16.,-19.,4.,π/2,3π/2), # target
-    init_bounds=RoombaCPOMDPInitBounds(-15.5,-15.5,-16.,-16.,0.,0.), # specific
+cpomdp = RoombaCPOMDP(pomdp, cost_budget=0.1,
+    # init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2), # general
+    init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,0.,0.,π/2,π/2), # target
+    # init_bounds=RoombaCPOMDPInitBounds(-15.5,-15.5,-16.,-16.,0.,0.), # specific
     )
 
 options = [
-    #GreedyGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #GreedyGoToGoal(cpomdp;max_steps=20),
-    SafeGoToGoal(cpomdp;max_steps=80, max_std=[30.,30.]), #SafeGoToGoal(cpomdp;max_steps=20),
+    GreedyGoToGoal(cpomdp;max_steps=80, max_std=[10.,10.]), #GreedyGoToGoal(cpomdp;max_steps=20),
+    SafeGoToGoal(cpomdp;max_steps=80, max_std=[10.,10.]), #SafeGoToGoal(cpomdp;max_steps=20),
     TurnThenGo(cpomdp;turn_steps=0,max_steps=40), TurnThenGo(cpomdp;turn_steps=2,max_steps=40),
     TurnThenGo(cpomdp;turn_steps=-2,max_steps=40), TurnThenGo(cpomdp;turn_steps=4,max_steps=40),
     ]
@@ -124,7 +124,7 @@ elseif run_policy == 3
 
         # option widening: Default false
         :enable_action_pw=>false,
-        :return_safe_action=>false,
+        :return_safe_action=>true,
         :depth => max_steps,
         :estimate_value => zero_V, # heuristicV
         :exploration_constant => 2.,
