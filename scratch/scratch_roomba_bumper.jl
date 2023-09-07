@@ -16,7 +16,7 @@ using D3Trees
 using Plots
 using Statistics
 
-Random.seed!(2) # debug seed 2, 3
+Random.seed!(4) # debug seed 2, 3
 
 problem = "discrete"
 sensor = FrontBumper(π/2-0.01) # Bumper() or Lidar()
@@ -33,8 +33,8 @@ pomdp = RoombaPOMDP(sensor=sensor,
                     stairs_penalty=-100.0, goal_reward=10., 
                     contact_pen=0.,time_pen=0.05))
 cpomdp = RoombaCPOMDP(pomdp, cost_budget=0.1,
-    # init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2), # general
-    init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,0.,0.,π/2,π/2), # target
+    init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2), # general
+    # init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,0.,0.,π/2,π/2), # target
     # init_bounds=RoombaCPOMDPInitBounds(-15.5,-15.5,-16.,-16.,0.,0.), # specific
     )
 
@@ -52,7 +52,7 @@ belief_updater = RoombaParticleFilter(cpomdp.pomdp,
     num_particles, v_noise_coefficient, om_noise_coefficient);
 # belief_updater = BootstrapFilter(cpomdp, num_particles)
 max_steps = 100
-check_ts = collect(1:max_steps) #[1, 6] # [1,30] # time steps to check tree and lambda history
+check_ts = [] #collect(1:max_steps) #[1, 6] # [1,30] # time steps to check tree and lambda history
 run_policy = 3 # [1 = CPOMCPOW, 2 = CPFT-DPW, 3=COBETS]
 
 ### CPOMCPOW policy p
