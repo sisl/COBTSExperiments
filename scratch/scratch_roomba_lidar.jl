@@ -18,15 +18,15 @@ using Statistics
 
 hl_action = nothing
 for seed = 1:10
-Random.seed!(seed) # debug seed 2, 3
+Random.seed!(seed)
 
 problem = "continuous"
 sensor = Lidar() # Bumper() or Lidar()
-vs = [0, 3]
+vs = [0, 1, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
-v_noise_coefficient = 0.25 #1.0
-om_noise_coefficient = 0.05 #0.5
+v_noise_coefficient = 0.5 #1.0
+om_noise_coefficient = 0.5 #0.5
 v_max = maximum(vs) + v_noise_coefficient/2 # allow PF to hit maximum target noise
 om_max = maximum(oms) + om_noise_coefficient/2
 pomdp = RoombaPOMDP(sensor=sensor,
@@ -42,10 +42,10 @@ cpomdp = RoombaCPOMDP(pomdp, cost_budget=0.1,
     )
 
 options = [
-    GreedyGoToGoal(cpomdp;max_steps=80, max_std=[2.,2.]), #GreedyGoToGoal(cpomdp;max_steps=20),
-    SafeGoToGoal(cpomdp;max_steps=80, max_std=[2.,2.]), #SafeGoToGoal(cpomdp;max_steps=20),
-    Spin(cpomdp;max_steps=5), Spin(cpomdp;max_steps=10),
-    BigSpin(cpomdp;max_steps=10), BigSpin(cpomdp; turn_every=2, max_steps=10)
+    GreedyGoToGoal(cpomdp;max_steps=80, max_std=[5.,5.]),
+    SafeGoToGoal(cpomdp;max_steps=80, max_std=[5.,5.]),
+    Spin(cpomdp;max_steps=3),Spin(cpomdp;max_steps=5), Spin(cpomdp;max_steps=10),
+    BigSpin(cpomdp;max_steps=10), BigSpin(cpomdp;turn_every=2,max_steps=10)
     #TurnThenGo(cpomdp;turn_steps=0,max_steps=40)
     ]
     

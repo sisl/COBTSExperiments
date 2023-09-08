@@ -82,7 +82,7 @@ function terminate(p::CRoombaGoToGoal, b)
     above_max_steps = p.steps >= p.max_steps
     stuck_at_wall = p.steps > 5 && p.steps_at_wall > 3
     @infiltrate false # stuck_at_wall
-    return Deterministic( above_max_std || above_max_steps || stuck_at_wall)
+    return Deterministic(above_max_std || above_max_steps || stuck_at_wall)
 end
 function reset!(p::CRoombaGoToGoal)
     p.steps = 0
