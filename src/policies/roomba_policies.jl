@@ -106,7 +106,7 @@ function distance_function(p::RoombaCPOMDP, s)
     # method 0 uses waypoints:
     waypoints = [[-15., 0], [12,0]]
     dist = 0.
-    goal_vec = get_goal_xy(p.pomdp) + [1,-2.]
+    goal_vec = get_goal_xy(p.pomdp) + [0,-2.]
     if x >= waypoints[2][1] || distance(s,waypoints[2]) <= 4
         # close to goal
         dist += distance(s, goal_vec)
