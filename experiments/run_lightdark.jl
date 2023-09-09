@@ -61,7 +61,7 @@ results = Dict(k=>LightExperimentResults(nsims) for (k,v) in experiments if v)
 exp = "cpft-infogain"
 if experiments[exp]
     println(exp)
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
         infogain_kwargs = copy(kwargs)
         infogain_kwargs[:estimate_value] = heuristicV
         rng = MersenneTwister(rng_stseed+i)
@@ -84,7 +84,7 @@ end
 exp = "cpft-noheur"
 if experiments[exp]
     println(exp)
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
@@ -106,7 +106,7 @@ end
 exp = "cobts4"
 if experiments[exp]
     println(exp)
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
@@ -128,7 +128,7 @@ end
 exp = "cobts7"
 if experiments[exp]
     println(exp)
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
@@ -150,11 +150,13 @@ end
 exp = "cpomcpow"
 if experiments[exp]
     println(exp)
-    @showprogress for i = 1:nsims
+    Threads.@threads for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         solver = CPOMCPOWSolver(;cpomcpow_kwargs..., rng = rng)
         planner = solve(solver, cpomdp)
-        updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
+        updater = CPOMCPOWBudgetUpdateWrapper(
+            BootstrapFilter(cpomdp, cpomdp_pf_size, rng),
+            planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
     end
     print_and_save(results[exp], "results/lightdark_$(exp)_$(nsims)sims.jld2") 

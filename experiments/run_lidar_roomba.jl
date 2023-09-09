@@ -20,12 +20,12 @@ experiments = Dict(
 )
 nsims = 50
 
-sensor = FrontBumper(π/2-0.01) # Bumper() or Lidar()
+sensor = Lidar() # Bumper() or Lidar()
 vs = [0, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
-v_noise_coefficient = 0.15 #1.0
-om_noise_coefficient = 0.02 #0.5
+v_noise_coefficient = 0.5 #1.0
+om_noise_coefficient = 0.5 #0.5
 v_max = maximum(vs) + v_noise_coefficient/2 # allow PF to hit maximum target noise
 om_max = maximum(oms) + om_noise_coefficient/2
 pomdp = RoombaPOMDP(sensor=sensor,
@@ -36,17 +36,16 @@ pomdp = RoombaPOMDP(sensor=sensor,
                     discount=0.999))
 cpomdp = RoombaCPOMDP(pomdp, cost_budget=0.1,
     # init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,0.,3π/2), # general
-    init_bounds=RoombaCPOMDPInitBounds(-24.,-16.,-14.,4.,π/2-0.1,π/2+0.1), # target
+    init_bounds=RoombaCPOMDPInitBounds(-24.5,-15.5,-19.5,4.5,π/2,3π/2), # target
     # init_bounds=RoombaCPOMDPInitBounds(-15.5,-15.5,-16.,-16.,0.,0.), # specific
     )
 
 options = [
-    GreedyGoToGoal(cpomdp;max_steps=80, max_std=[2.,2.]), #GreedyGoToGoal(cpomdp;max_steps=20),
-    SafeGoToGoal(cpomdp;max_steps=80, max_std=[2.,2.]), #SafeGoToGoal(cpomdp;max_steps=20),
-    TurnThenGo(cpomdp;turn_steps=0,max_steps=40), 
-    TurnThenGo(cpomdp;turn_steps=2,max_steps=40), TurnThenGo(cpomdp;turn_steps=-2,max_steps=40), 
-    #TurnThenGo(cpomdp;turn_steps=3,max_steps=40),TurnThenGo(cpomdp;turn_steps=-3,max_steps=40), 
-    TurnThenGo(cpomdp;turn_steps=4,max_steps=40),
+    GreedyGoToGoal(cpomdp;max_steps=80, max_std=[5.,5.]),
+    SafeGoToGoal(cpomdp;max_steps=80, max_std=[5.,5.]),
+    Spin(cpomdp;max_steps=3),Spin(cpomdp;max_steps=5), Spin(cpomdp;max_steps=10),
+    BigSpin(cpomdp;max_steps=10), BigSpin(cpomdp;turn_every=2,max_steps=10)
+    #TurnThenGo(cpomdp;turn_steps=0,max_steps=40)
     ]
     
 num_particles = 10000
@@ -138,7 +137,7 @@ if experiments[exp]
     
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPOMCPOW
@@ -154,7 +153,7 @@ if experiments[exp]
         belief_updater = CPOMCPOWBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPFT-Infogain
@@ -176,7 +175,7 @@ if experiments[exp]
         updater = CMCTSBudgetUpdateWrapper(belief_updater, planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; track_history=false)
         println("Results for $(exp)")
-        print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
+        print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
     end
 end
 
@@ -197,11 +196,11 @@ if experiments[exp]
         belief_updater = CMCTSBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # Print and save
 for (key,result) in results
     println("Results for $(key)")
-    print_and_save(result, "results/all_roomba_bumper_$(key)_$(nsims)sims.jld2") 
+    print_and_save(result, "results/all_roomba_lidar_$(key)_$(nsims)sims.jld2") 
 end

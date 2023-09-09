@@ -22,7 +22,7 @@ Random.seed!(seed)
 
 problem = "continuous"
 sensor = Lidar() # Bumper() or Lidar()
-vs = [0, 1, 3]
+vs = [0, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
 v_noise_coefficient = 0.5 #1.0
