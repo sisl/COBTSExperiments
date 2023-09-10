@@ -8,14 +8,14 @@ using ParticleFilters
 
 # experiments to run
 experiments=Dict(
-    "repeat_options"=>false,
-    "goal_options"=>false,
-    "target_uncertainty"=>false,
+    "repeat_options"=>true,
+    "goal_options"=>true,
+    "target_uncertainty"=>true,
     "random_3actions"=>true,
     "random_6actions"=>true,
 )
-nsims = 20
-max_options = 32
+nsims = 50
+max_options = 40
 
 # same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e4), 
@@ -35,18 +35,22 @@ search_pf_size = Int(10)
 cpomdp_pf_size = Int(1e4)
 
 cpomdp = LightDarkCPOMDP(cost_budget=0.1)
-base_options = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,0.5), 
-LocalizeSlow(cpomdp,10.,0.5),  LocalizeSafe(cpomdp, 10., 12., 1., 0.5)]
+#base_options = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,0.5), 
+#    LocalizeSlow(cpomdp,10.,0.5),  LocalizeSafe(cpomdp, 10., 12., 1., 0.5)]
+
+base_options = [GoToGoal(cpomdp), 
+    LocalizeFast(cpomdp,10.,0.2), LocalizeSlow(cpomdp,10.,0.2), LocalizeSafe(cpomdp, 10., 12., 1., 0.2),
+    LocalizeFast(cpomdp,10.,0.5), LocalizeSlow(cpomdp,10.,0.5), LocalizeSafe(cpomdp, 10., 12., 1., 0.5)]
 
 # options
 
 rng_stseed = 0
 experiment_runs = Dict(
-    "repeat_options"=>collect(4:4:max_options),
-    "goal_options"=>collect(4:1:max_options),
-    "target_uncertainty"=>collect(4:3:max_options),
-    "random_3actions"=>collect(4:4:max_options),
-    "random_6actions"=>collect(4:4:max_options),
+    "repeat_options"=>[4;collect(length(base_options):4:max_options)],
+    "goal_options"=>[4;collect(length(base_options):1:max_options)],
+    "target_uncertainty"=>[4;collect(length(base_options):3:max_options)],
+    "random_3actions"=>[4;collect(length(base_options):4:max_options)],
+    "random_6actions"=>[4;collect(length(base_options):4:max_options)],
 )
 actgenrng = MersenneTwister(1000)
 options = Dict(
@@ -80,7 +84,7 @@ for (expname, todo) in experiments
             results[(expname,k)][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
         end
         println("Results for COBTS with $(expname) options and k=$(k)")
-        print_and_save(results[(expname,k)], "results/lightdark_COBTS_$(expname)_$(k)options_$(nsims)sims.jld2") 
+        print_and_save(results[(expname,k)], "results/sweep_options/lightdark_COBTS_$(expname)_$(k)options_$(nsims)sims.jld2") 
     end
 end
 
