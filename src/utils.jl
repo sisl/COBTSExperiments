@@ -57,9 +57,13 @@ function print_and_save(er::Union{LightExperimentResults,ExperimentResults}, fil
     FileIO.save(fileloc,d)
 end
 
-function load_and_print(fileloc::String)
+function load_ler(fileloc::String)
     d = load(fileloc)
-    er = LightExperimentResults(d["R"], d["C"])
+    return LightExperimentResults(d["R"], d["C"])
+end
+
+function load_and_print(fileloc::String)
+    er = load_ler(fileloc)
     l = length(er.Rs)
     mR, mC = mean(er)
     stdR, stdC = std(er)

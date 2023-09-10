@@ -153,3 +153,29 @@ node_tag(p::LocalizeSafe) = "LocalizeSafe($(p.α),$(p.max_std))"
 
 #CPOMDPs.gbmdp_handle_terminal(pomdp::LightDarkCPOMDP, updater::Updater, b, s, a, rng) = b # dont update terminal beliefs (should just return 0 reward)
 
+### Wrap Multiple Random Actions:
+mutable struct MultiActionWrapper{P, A} <: LowLevelPolicy
+    problem::P
+    actions::Vector{A}
+    step::Int
+end
+MultiActionWrapper(problem::P, actions::Vector{A}) where {P<:CPOMDP, 
+    A} = MultiActionWrapper{P,A}(problem, actions, 0)
+
+function MultiActionWrapper(problem::LightDarkCPOMDP{P,S,A}, n_actions::Int; rng=Random.GLOBAL_RNG) where {P,S,A}
+    action_set = filter(x->x!=0., POMDPs.actions(problem))
+    actions = [rand(rng,action_set) for i=1:n_actions]
+    return MultiActionWrapper(problem, actions)
+end
+
+function POMDPTools.action_info(p::MultiActionWrapper, b)
+    p.step += 1
+    return p.actions[p.step], (;)
+end
+function reset!(p::MultiActionWrapper) 
+    p.step = 0
+end
+
+terminate(p::MultiActionWrapper, b) = Deterministic(p.step>=length(p.actions))
+
+node_tag(p::MultiActionWrapper) = string(p.actions)

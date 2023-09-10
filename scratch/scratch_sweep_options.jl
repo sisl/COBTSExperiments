@@ -5,6 +5,7 @@ using CPOMCPOW
 using Random
 using ProgressMeter
 using ParticleFilters
+using D3Trees
 
 # experiments to run
 experiments=Dict(
@@ -12,7 +13,7 @@ experiments=Dict(
     "goal_options"=>false,
     "target_uncertainty"=>false,
     "random_3actions"=>true,
-    "random_6actions"=>true,
+    "random_6actions"=>false,
 )
 nsims = 20
 max_options = 32
@@ -26,8 +27,8 @@ kwargs = Dict(:n_iterations=>Int(1e4),
         :exploration_constant=>200., # ld experiments use 90
         :nu=>0., 
         :estimate_value => zero_V,
-        :tree_in_info => false,
-        :search_progress_info => false,
+        :tree_in_info => true,
+        :search_progress_info => true,
         :return_safe_action => true)
 
 as = 0.5
@@ -56,15 +57,12 @@ options = Dict(
         LocalizeSlow(cpomdp,10.,u),  LocalizeSafe(cpomdp,10.,12.,1.,u)] for u in 0.2:.1:1.5]...)],
     "random_3actions"=>[base_options; [MultiActionWrapper(cpomdp,3;rng=actgenrng) for i=1:(max_options-length(base_options))]],
     "random_6actions"=>[base_options; [MultiActionWrapper(cpomdp,6;rng=actgenrng) for i=1:(max_options-length(base_options))]]
-
 )
 
 ### Experiments
-results = Dict{Tuple{String,Int},LightExperimentResults}()
 for (expname, todo) in experiments
     !todo && continue
-    @showprogress for k = experiment_runs[expname]
-        results[(expname,k)] = LightExperimentResults(nsims)
+    @showprogress for k = 32:32
         @showprogress for i = 1:nsims
             rng = MersenneTwister(rng_stseed+i)
             search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
@@ -77,10 +75,9 @@ for (expname, todo) in experiments
                 exact_rewards=true)
             planner = solve(solver, cpomdp)
             updater = BootstrapFilter(cpomdp, cpomdp_pf_size, rng)
-            results[(expname,k)][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+            hist, R, C = run_cpomdp_simulation(cpomdp, planner, updater, 1; rng=rng, track_history=true)
+            inchrome(D3Tree(hist[1][:tree];lambda=hist[1][:lambda][end]))
         end
-        println("Results for COBTS with $(expname) options and k=$(k)")
-        print_and_save(results[(expname,k)], "results/lightdark_COBTS_$(expname)_$(k)options_$(nsims)sims.jld2") 
     end
 end
 

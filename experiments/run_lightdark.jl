@@ -14,7 +14,7 @@ experiments = Dict(
     "cobts7"=>true,
     "cpomcpow"=>true,
 )
-nsims = 50
+nsims = 100
 
 # same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e4), 

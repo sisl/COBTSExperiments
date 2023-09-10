@@ -51,6 +51,7 @@ export
     LocalizeFast,
     LocalizeSlow,
     LocalizeSafe,
+    MultiActionWrapper,
     # Roomba
     GoToGoal2D,
     Localize2D,
