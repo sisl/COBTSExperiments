@@ -24,8 +24,8 @@ sensor = Lidar() # Bumper() or Lidar()
 vs = [0, 3]
 oms = [-π/2, 0, π/2] # with a dt of 0.5 seconds, this is 45 degrees per step
 RoombaActSpace = [RoombaAct(v, om) for v in vs for om in oms]
-v_noise_coefficient = 0.25 #1.0
-om_noise_coefficient = 0.25 #0.5
+v_noise_coefficient = 0.2 #1.0
+om_noise_coefficient = 0.02 #0.5
 v_max = maximum(vs) + v_noise_coefficient/2 # allow PF to hit maximum target noise
 om_max = maximum(oms) + om_noise_coefficient/2
 pomdp = RoombaPOMDP(sensor=sensor,

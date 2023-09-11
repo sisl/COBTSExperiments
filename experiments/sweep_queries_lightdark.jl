@@ -9,7 +9,7 @@ using ParticleFilters
 # experiments to run (num_options, num_queries)
 
 num_options = [2, 3, 4, 5] 
-num_queries = [10,20, 50, 100,200, 500, 1000,2000,5000,10000,20000, 50000,100000]
+num_queries = [10,20, 50, 100,200, 500, 1000,2000,5000,10000,20000, 50000]
 nsims = 20
 
 # same kwargs for pft and cobts algorithms
@@ -39,7 +39,7 @@ options = [GoToGoal(cpomdp),
 # options
 
 ### Experiments
-for nq in num_queries
+for nq in [] #num_queries
     kwargs[:n_iterations] = nq
     @showprogress for k = num_options
         results = LightExperimentResults(nsims)
@@ -59,4 +59,44 @@ for nq in num_queries
         end
         print_and_save(results, "results/sweep_queries/lightdark_cobts_$(nq)queries_$(k)options_$(nsims)sims.jld2") 
     end
+end
+
+# CPFT
+for nq in num_queries
+    kwargs[:n_iterations] = nq
+    results = LightExperimentResults(nsims)
+    @showprogress for i = 1:nsims
+        rng = MersenneTwister(i)
+        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        solver = BeliefCMCTSSolver(
+            CDPWSolver(;kwargs...,
+                rng = rng,
+                alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
+            ), search_updater;
+            exact_rewards=true)
+        planner = solve(solver, cpomdp)
+        updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
+        results[i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+    end
+    print_and_save(results, "results/sweep_queries/lightdark_cpftsafe_$(nq)queries_$(nsims)sims.jld2") 
+end
+
+kwargs[:return_safe_action] = false
+for nq in num_queries
+    kwargs[:n_iterations] = nq
+    results = LightExperimentResults(nsims)
+    @showprogress for i = 1:nsims
+        rng = MersenneTwister(i)
+        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
+        solver = BeliefCMCTSSolver(
+            CDPWSolver(;kwargs...,
+                rng = rng,
+                alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
+            ), search_updater;
+            exact_rewards=true)
+        planner = solve(solver, cpomdp)
+        updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
+        results[i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
+    end
+    print_and_save(results, "results/sweep_queries/lightdark_cpft_$(nq)queries_$(nsims)sims.jld2") 
 end
