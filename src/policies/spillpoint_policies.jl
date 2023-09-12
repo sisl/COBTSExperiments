@@ -47,11 +47,6 @@ function POMDPTools.action_info(p::InferGeology, b)
         end
     end
 
-    if isempty(p.monitor_actions)
-        @warn "No monitor actions left"
-        return (:inject, 0.0), (;)
-    end
-
     # Use each of the monitor actions to reduct uncertainty
     if isnothing(a)
         a = popfirst!(p.monitor_actions)

@@ -12,10 +12,10 @@ using D3Trees
 
 # experiments to run
 experiments = Dict(
-    "cpft-infogain"=>true,
-    "cpft-noheur"=>true,
+    "cpft-infogain"=>false,
+    "cpft-noheur"=>false,
     "cobts"=>true,
-    "cpomcpow"=>true,
+    "cpomcpow"=>false,
 )
 nsims = 10
 
@@ -65,7 +65,7 @@ options = [
     SafeFill(cpomdp)    
 ]
 
-default_up() = SpillpointPOMDP.SIRParticleFilter(
+default_up(rng) = SpillpointPOMDP.SIRParticleFilter(
 	model=m, 
 	N=200, 
 	state2param=SpillpointPOMDP.state2params, 
@@ -75,10 +75,11 @@ default_up() = SpillpointPOMDP.SIRParticleFilter(
 	prior=SpillpointPOMDP.param_distribution(initialstate(m)),
 	elite_frac=0.3,
 	bandwidth_scale=.5,
-	max_cpu_time=60
+	max_cpu_time=60,
+    rng=rng
 )
 
-cobts_updater() = SpillpointPOMDP.SIRParticleFilter(
+cobts_updater(rng) = SpillpointPOMDP.SIRParticleFilter(
 	model=m, 
 	N=search_pf_size, 
 	state2param=SpillpointPOMDP.state2params, 
@@ -88,7 +89,8 @@ cobts_updater() = SpillpointPOMDP.SIRParticleFilter(
 	prior=SpillpointPOMDP.param_distribution(initialstate(m)),
 	elite_frac=0.3,
 	bandwidth_scale=.5,
-	max_cpu_time=1
+	max_cpu_time=1,
+    rng=rng
 )
 
 
@@ -116,7 +118,7 @@ if experiments[exp]
         infogain_kwargs = copy(kwargs)
         infogain_kwargs[:estimate_value] = QMDP_V
         rng = MersenneTwister(rng_stseed+i)
-        search_updater = cobts_updater() #BootstrapFilter(cpomdp, search_pf_size, rng)
+        search_updater = cobts_updater(rng) #BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
             CDPWSolver(;infogain_kwargs..., 
                 rng = rng,
@@ -125,7 +127,7 @@ if experiments[exp]
             ), search_updater;
             exact_rewards=false)
         planner = solve(solver, cpomdp)
-        updater = CMCTSBudgetUpdateWrapper(default_up(), planner)
+        updater = CMCTSBudgetUpdateWrapper(default_up(rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
     end
     println("Results for $(exp)")
@@ -138,7 +140,7 @@ if experiments[exp]
     Threads.@threads for i = 1:nsims
         println("Experiment $exp, sim $i")
         rng = MersenneTwister(rng_stseed+i)
-        search_updater = cobts_updater() # BootstrapFilter(cpomdp, search_pf_size, rng)
+        search_updater = cobts_updater(rng) # BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
             CDPWSolver(;kwargs...,
                 rng = rng,
@@ -147,7 +149,7 @@ if experiments[exp]
             ), search_updater;
             exact_rewards=false)
         planner = solve(solver, cpomdp)
-        updater = CMCTSBudgetUpdateWrapper(default_up(), planner)
+        updater = CMCTSBudgetUpdateWrapper(default_up(rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
     end
     println("Results for $(exp)")
@@ -162,7 +164,7 @@ if experiments[exp]
     Threads.@threads for i = 1:nsims
         println("Experiment $exp, sim $i")
         rng = MersenneTwister(rng_stseed+i)
-        search_updater = cobts_updater() # BootstrapFilter(cpomdp, search_pf_size, rng)
+        search_updater = cobts_updater(rng) # BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
             COTSSolver(;kwargs..., 
                 rng = rng,
@@ -173,7 +175,7 @@ if experiments[exp]
             ), search_updater;
             exact_rewards=false) # TODO: Maybe switch back
         planner = solve(solver, cpomdp)
-        updater = default_up()
+        updater = default_up(rng)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
     end
     println("Results for $(exp)")
@@ -188,7 +190,7 @@ if experiments[exp]
         rng = MersenneTwister(rng_stseed+i)
         solver = CPOMCPOWSolver(;cpomcpow_kwargs..., rng = rng)
         planner = solve(solver, cpomdp)
-        updater = default_up()
+        updater = default_up(rng)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; rng=rng, track_history=false)
     end
     println("Results for $(exp)")
