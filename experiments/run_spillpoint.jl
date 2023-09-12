@@ -53,7 +53,7 @@ cpomcpow_kwargs = Dict(
 # options
 cpomdp = SpillpointInjectionCPOMDP(constraint_budget=1e-6)
 m = cpomdp.pomdp
-options = [
+options() = [
     SingleActionWrapper((:stop, 0.0)),
     [SingleActionWrapper((:inject, val)) for val in m.injection_rates]...,
     [SingleActionWrapper((:observe, config)) for config in m.obs_configurations]...,
@@ -168,7 +168,7 @@ if experiments[exp]
         solver = COBTSSolver(
             COTSSolver(;kwargs..., 
                 rng = rng,
-                options = options,
+                options = options(),
                 alpha_schedule = COTS.ConstantAlphaSchedule(as),
                 return_safe_action=true,
                 estimate_value = QMDP_V,
