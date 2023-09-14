@@ -12,10 +12,10 @@ using D3Trees
 
 # experiments to run
 experiments = Dict(
-    "cpft-infogain"=>false,
-    "cpft-noheur"=>false,
+    "cpft-infogain"=>true,
+    "cpft-noheur"=>true,
     "cobts"=>true,
-    "cpomcpow"=>false,
+    "cpomcpow"=>true,
 )
 nsims = 10
 
