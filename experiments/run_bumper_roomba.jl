@@ -157,29 +157,6 @@ if experiments[exp]
     print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
 end
 
-# CPFT-Infogain
-exp = "cpft-heur"
-if experiments[exp]
-    @showprogress for i = 1:nsims
-        infogain_kwargs = copy(kwargs)
-        infogain_kwargs[:estimate_value] = QMDP_V
-        rng = MersenneTwister(rng_stseed+i)
-        search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
-        solver = BeliefCMCTSSolver(
-            CDPWSolver(;infogain_kwargs..., 
-                rng = rng,
-                alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
-                return_safe_action=true,
-            ), search_updater;
-            exact_rewards=true)
-        planner = solve(solver, cpomdp)
-        updater = CMCTSBudgetUpdateWrapper(belief_updater, planner)
-        results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; track_history=false)
-        println("Results for $(exp)")
-        print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
-    end
-end
-
 # CPFT-No Heuristic
 exp = "cpft-noheur"
 if experiments[exp]
@@ -198,10 +175,4 @@ if experiments[exp]
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
     print_and_save(results[exp], "results/roomba_bumper_$(exp)_$(nsims)sims.jld2") 
-end
-
-# Print and save
-for (key,result) in results
-    println("Results for $(key)")
-    print_and_save(result, "results/all_roomba_bumper_$(key)_$(nsims)sims.jld2") 
 end

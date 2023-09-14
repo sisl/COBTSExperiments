@@ -5,6 +5,8 @@ using CPOMCPOW
 using Random
 using ProgressMeter
 using ParticleFilters
+!(isdir("results/sweep_options/")) && mkpath("results/sweep_options/")
+
 
 # experiments to run
 experiments=Dict(
@@ -17,7 +19,6 @@ experiments=Dict(
 nsims = 50
 max_options = 40
 
-# same kwargs for pft and cobts algorithms
 kwargs = Dict(:n_iterations=>Int(1e4), 
         :k_state => 1., # 0.1, # ld experiments use 5
         :alpha_state => 1/5, #0.5, # ld experiments use 1/15
@@ -35,8 +36,6 @@ search_pf_size = Int(10)
 cpomdp_pf_size = Int(1e4)
 
 cpomdp = LightDarkCPOMDP(cost_budget=0.1)
-#base_options = [GoToGoal(cpomdp), LocalizeFast(cpomdp,10.,0.5), 
-#    LocalizeSlow(cpomdp,10.,0.5),  LocalizeSafe(cpomdp, 10., 12., 1., 0.5)]
 
 base_options = [GoToGoal(cpomdp), 
     LocalizeFast(cpomdp,10.,0.2), LocalizeSlow(cpomdp,10.,0.2), LocalizeSafe(cpomdp, 10., 12., 1., 0.2),
@@ -87,10 +86,3 @@ for (expname, todo) in experiments
         print_and_save(results[(expname,k)], "results/sweep_options/lightdark_COBTS_$(expname)_$(k)options_$(nsims)sims.jld2") 
     end
 end
-
-# Print and save
-# for (label,result) in results
-#     expname, k = label
-#     println("Results for COBTS with $(expname) options and k=$(k)")
-#     print_and_save(result, "results/lightdark_COBTS_$(expname)_$(k)options_$(nsims)sims.jld2") 
-# end

@@ -1,32 +1,48 @@
 using COBTSExperiments
 using Plots; pgfplotsx()
 
-num_options = [2, 3, 4, 5] 
-num_queries = [10,20, 50, 100,200, 500, 1000,2000,5000,10000,20000, 50000,100000]
-nsims = 20
+num_queries = [10,20, 50, 100,200, 500, 1000,2000,5000]
+nsims = 50
 
 p = plot(
-    plot(legend=true, xaxis=:log10),
     plot(legend=false, xaxis=:log10),
+    plot(legend=true, xaxis=:log10),
     layout=(2, 1),  # 2 rows, 1 column
     xlabel=["" "Number of Search Queries"],
-    title=["Rs" "Cs"],
+    ylabel=["Mean Reward" "Mean Cost"],
 )
-for k in num_options
-    ers = [COBTSExperiments.load_ler(
-        "results/sweep_queries/lightdark_cobts_$(nq)queries_$(k)options_$(nsims)sims.jld2") for nq in num_queries]
+
+function get_rc_errors(ers::Vector{LightExperimentResults})
     means = [mean(er) for er in ers]
     stds = [std(er) for er in ers]
-    y1 = [m[1] for m in means]
-    y2 = [m[2][1] for m in means]
-
-    # plot means
-    plot!(p[1], num_queries, y1, label="K=$(k)", legend=true, line=:auto)
-    plot!(p[2], num_queries, y2, line=:auto)
+    R = [m[1] for m in means]
+    C = [m[2][1] for m in means]
+    errR = [s[1]/sqrt(nsims) for s in stds]
+    errC = [s[2][1]/sqrt(nsims) for s in stds]
+    return R, C, errR, errC
 end
-hline!(p[2], [0.1], color="black", linestyle=:dash)
-annotate!(p[2], [(20, 0.09, text("Constraint Budget", :left, 10))])
+
+# Cobets
+for k in [3]
+ers = [COBTSExperiments.load_ler(
+    "results/sweep_queries/lightdark_cobts_$(nq)queries_$(k)options_$(nsims)sims.jld2") for nq in num_queries]
+R,C,errR,errC = get_rc_errors(ers)
+plot!(p[1], num_queries, R, yerr=errR, line=:auto)
+plot!(p[2], num_queries, C, yerr=errC, label="COBeTS, K=$(k)", legend=true, line=:auto)
+end
+
+# CPFT
+ers = [COBTSExperiments.load_ler(
+    "results/sweep_queries/lightdark_cpft_$(nq)queries_$(nsims)sims.jld2") for nq in num_queries]
+R,C,errR,errC = get_rc_errors(ers)
+plot!(p[1], num_queries, R, yerr=errR, line=:auto)
+plot!(p[2], num_queries, C, yerr=errC, label="CPFT-DPW", legend=true, line=:auto)
+
+hline!(p[2], [0.1], color="black", label=nothing, linestyle=:dash)
+annotate!(p[2], [(1000, 0.3, text("Constraint Budget", :left, 10))])
 
 #legend!(p)
-savefig(p,"results/sweep_queries_$(nsims).tikz")
-savefig(p,"results/sweep_queries_$(nsims).pdf")
+
+!(isdir("results/figs/")) && mkpath("results/figs/")
+savefig(p,"results/figs/sweep_queries_$(nsims).tex")
+savefig(p,"results/figs/sweep_queries_$(nsims).pdf")
