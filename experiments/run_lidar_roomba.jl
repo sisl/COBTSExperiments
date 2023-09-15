@@ -75,7 +75,7 @@ cpomcpow_kwargs = Dict(
 
 # CPFT-DPW kwargs
 cpft_kwargs = Dict(
-    :n_iterations=>Int(1e3),
+    :n_iterations=>Int(4e3),
 
     # belief-state widening: Bumper = None, Lidar = (1., 1/5)
     :enable_state_pw => true,
