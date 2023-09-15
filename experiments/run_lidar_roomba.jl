@@ -15,8 +15,8 @@ using ProgressMeter
 experiments = Dict(
     "cpft-heur"=>false,
     "cpft-noheur"=>true,
-    "cobts"=>true,
-    "cpomcpow"=>true,
+    "cobts"=>false,
+    "cpomcpow"=>false,
 )
 nsims = 50
 
@@ -48,12 +48,12 @@ options = [
     #TurnThenGo(cpomdp;turn_steps=0,max_steps=40)
     ]
     
-num_particles = 20000
+num_particles = 10000
 max_steps = 100
 
 # CPOMCPOW kwargs 
 cpomcpow_kwargs = Dict(
-    :tree_queries=>Int(1e4),
+    :tree_queries=>Int(4e3),
     # observation widening: Bumper = None, Lidar = (1., 1/5)
     :k_observation => 1., 
     :alpha_observation => 1/5., 
