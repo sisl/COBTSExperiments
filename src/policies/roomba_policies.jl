@@ -54,14 +54,15 @@ node_tag(p::GreedyGoToGoal) = "GreedyGoToGoal($(p.max_steps))"
 mutable struct SafeGoToGoal{P<:RoombaCPOMDP} <: LowLevelPolicy
     problem::P
     barrier_penalty::Float64 # factor by which to penalize avoid region distances
+    barrier_weight::Float64 # weight of barrier term in distance function
     max_std::Vector # [std_x,std_y] above which to terminate
     max_steps::Int # number of option steps above which to terminate
     samples::Int # number of samples of belief to take for distance calculations  
     steps::Int # number of steps taken in option
     steps_at_wall::Int
 end
-SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40, barrier_penalty=10., samples=1) where {
-    P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, barrier_penalty, max_std, max_steps, samples, 0, 0)
+SafeGoToGoal(cpomdp::P; max_std = [10.0, 10.0], max_steps = 40, barrier_penalty=10., barrier_weight=0., samples=1) where {
+    P<:RoombaCPOMDP} = SafeGoToGoal{P}(cpomdp, barrier_penalty, barrier_weight, max_std, max_steps, samples, 0, 0)
 node_tag(p::SafeGoToGoal) = "SafeGoToGoal($(p.max_steps))"
 
 # go_to_goal termination, reseting, and updating
@@ -140,12 +141,12 @@ function distance_function(p::SafeGoToGoal, s::RoombaState)
         if barrier == "log"
             barrier_term = -log(-g_x)  # log barrier function
         elseif barrier == "inverse"
-            barrier_term = -1.0 / g_x * 3  # inverse barrier function
+            barrier_term = -1.0 / g_x  # inverse barrier function
         else
             error("Unknown barrier function (choose log or inverse)")
         end
     end
-    return distance_function(p.problem, s) + barrier_term
+    return distance_function(p.problem, s) + p.barrier_weight * barrier_term
 end
 
 function is_feasible(x::Vector{Float64}, lower_bounds::Vector{Float64}, upper_bounds::Vector{Float64})
@@ -206,6 +207,7 @@ function navigate(p::CRoombaGoToGoal, ss::Vector{RoombaState})
                 best_action = a
             end
         end
+        best_action = RoombaAct(best_action...)
     elseif typeof(act_space) == RoombaPOMDPs.RoombaActions
         initial_guess = [2., 0.]
         step_size = 1.

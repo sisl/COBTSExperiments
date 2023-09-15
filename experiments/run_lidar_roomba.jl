@@ -42,13 +42,13 @@ cpomdp = RoombaCPOMDP(pomdp, cost_budget=0.1,
 
 options = [
     GreedyGoToGoal(cpomdp;max_steps=80, max_std=[6.,6.]),
-    SafeGoToGoal(cpomdp;max_steps=80, barrier_penalty=Inf,  max_std=[6.,6.]),
+    SafeGoToGoal(cpomdp;max_steps=80, barrier_penalty=Inf, barrier_weight=3., max_std=[6.,6.]),
     Spin(cpomdp;max_steps=3),Spin(cpomdp;max_steps=5), Spin(cpomdp;max_steps=10),
     BigSpin(cpomdp;max_steps=10), BigSpin(cpomdp;turn_every=2,max_steps=10)
     #TurnThenGo(cpomdp;turn_steps=0,max_steps=40)
     ]
     
-num_particles = 10000
+num_particles = 20000
 max_steps = 100
 
 # CPOMCPOW kwargs 
@@ -137,7 +137,7 @@ if experiments[exp]
     
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPOMCPOW
@@ -153,7 +153,7 @@ if experiments[exp]
         belief_updater = CPOMCPOWBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPFT-Infogain
@@ -175,7 +175,7 @@ if experiments[exp]
         updater = CMCTSBudgetUpdateWrapper(belief_updater, planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; track_history=false)
         println("Results for $(exp)")
-        print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+        print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
     end
 end
 
@@ -196,11 +196,11 @@ if experiments[exp]
         belief_updater = CMCTSBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # Print and save
-for (key,result) in results
-    println("Results for $(key)")
-    print_and_save(result, "results/all_roomba_lidar_$(key)_$(nsims)sims.jld2") 
-end
+# for (key,result) in results
+#     println("Results for $(key)")
+#     print_and_save(result, "results/all_roomba_lidar_$(key)_$(nsims)sims.jld2") 
+# end
