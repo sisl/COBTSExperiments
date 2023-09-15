@@ -140,12 +140,52 @@ function distance_function(p::SafeGoToGoal, s::RoombaState)
         if barrier == "log"
             barrier_term = -log(-g_x)  # log barrier function
         elseif barrier == "inverse"
-            barrier_term = -1.0 / g_x  # inverse barrier function
+            barrier_term = -1.0 / g_x * 3  # inverse barrier function
         else
             error("Unknown barrier function (choose log or inverse)")
         end
     end
     return distance_function(p.problem, s) + barrier_term
+end
+
+function is_feasible(x::Vector{Float64}, lower_bounds::Vector{Float64}, upper_bounds::Vector{Float64})
+    return all(lower_bounds .<= x) && all(x .<= upper_bounds)
+end
+
+function hooke_jeeves(f, x, α, ε, γ=0.5, lower_bounds=nothing, upper_bounds=nothing)
+    y, n = f(x), length(x)
+    while α > ε
+        improved = false
+        x_best, y_best = x, y
+        for i in 1 : n
+            for sgn in (-1,1)
+                b = zeros(n)
+                b[i] = 1.0
+                x′ = x + sgn*α*b
+                # Check feasibility
+                if lower_bounds !== nothing && upper_bounds !== nothing
+                    if !is_feasible(x′, lower_bounds, upper_bounds)
+                        continue
+                    end
+                end
+                y′ = f(x′)
+                if y′ < y_best
+                    x_best, y_best, improved = x′, y′, true
+                end
+            end
+        end
+        x, y = x_best, y_best
+        if !improved
+            α *= γ
+        end
+    end
+    return x
+end
+
+function objective_function(a::Vector{Float64}, p::CRoombaGoToGoal, ss::Vector{RoombaState})
+    sps = [rand(transition(p.problem, s, RoombaAct(a...))) for s in ss]  # not quite random, in fact deterministic
+    distances = [distance_function(p, s) for s in sps]
+    return Statistics.mean(distances)
 end
 
 
@@ -156,14 +196,31 @@ function navigate(p::CRoombaGoToGoal, ss::Vector{RoombaState})
     """
     best_action = RoombaAct(0, 0)
     best_dist = Inf
-    for a in actions(p.problem)
-        sps = [rand(transition(p.problem, s, a)) for s in ss]  # not quite random, in fact deterministic
-        distances = [distance_function(p,s) for s in sps]
-        dist = Statistics.mean(distances)
-        if dist < best_dist
-            best_dist = dist
-            best_action = a
+    act_space = p.problem.pomdp.mdp.aspace
+    if typeof(act_space) == Vector{RoombaAct}
+        for a in actions(p.problem)
+            a = [a.v, a.omega]
+            dist = objective_function(a, p, ss)
+            if dist < best_dist
+                best_dist = dist
+                best_action = a
+            end
         end
+    elseif typeof(act_space) == RoombaPOMDPs.RoombaActions
+        initial_guess = [2., 0.]
+        step_size = 1.
+        tolerance = 0.1
+        step_reduction = 0.5
+        v_max = p.problem.pomdp.mdp.v_max
+        om_max = p.problem.pomdp.mdp.om_max
+        lower_bounds = [0., -om_max]
+        upper_bounds = [v_max, om_max]
+        best_action = hooke_jeeves(a -> objective_function(a, p, ss), initial_guess, step_size,
+                                    tolerance, step_reduction, lower_bounds, upper_bounds)
+        best_dist = objective_function(best_action, p, ss)
+        best_action = RoombaAct(best_action...)
+    else
+        error("Uknown action space")
     end
     return best_action, best_dist
 end
