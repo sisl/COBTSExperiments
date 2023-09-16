@@ -8,16 +8,16 @@ using ParticleFilters
 
 # experiments to run
 experiments = Dict(
-    "cpft-infogain"=>true,
-    "cpft-noheur"=>true,
-    "cobts4"=>true,
-    "cobts7"=>true,
+    "cpft-infogain"=>true, 
+    "cpft-noheur"=>true, # reporting no heuristic cpft
+    "cobts4"=>true, 
+    "cobts7"=>true, # reporting cobts with 7 options
     "cpomcpow"=>true,
 )
 nsims = 100
 
 # same kwargs for pft and cobts algorithms
-kwargs = Dict(:n_iterations=>Int(1e4), 
+kwargs = Dict(:n_iterations=>Int(1e3), 
         :k_state => 1., # 0.1, # ld experiments use 5
         :alpha_state => 1/5, #0.5, # ld experiments use 1/15
         :enable_action_pw=>false,
@@ -61,7 +61,7 @@ results = Dict(k=>LightExperimentResults(nsims) for (k,v) in experiments if v)
 exp = "cpft-infogain"
 if experiments[exp]
     println(exp)
-    Threads.@threads for i = 1:nsims
+    @showprogress for i = 1:nsims
         infogain_kwargs = copy(kwargs)
         infogain_kwargs[:estimate_value] = heuristicV
         rng = MersenneTwister(rng_stseed+i)
@@ -72,7 +72,7 @@ if experiments[exp]
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
                 return_safe_action=false,
             ), search_updater;
-            exact_rewards=false)
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
@@ -84,7 +84,7 @@ end
 exp = "cpft-noheur"
 if experiments[exp]
     println(exp)
-    Threads.@threads for i = 1:nsims
+    @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = BeliefCMCTSSolver(
@@ -93,7 +93,7 @@ if experiments[exp]
                 alpha_schedule = CMCTS.ConstantAlphaSchedule(as),
                 return_safe_action=false,
             ), search_updater;
-            exact_rewards=false)
+            exact_rewards=true)
         planner = solve(solver, cpomdp)
         updater = CMCTSBudgetUpdateWrapper(BootstrapFilter(cpomdp, cpomdp_pf_size, rng), planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater; rng=rng, track_history=false)
@@ -106,7 +106,7 @@ end
 exp = "cobts4"
 if experiments[exp]
     println(exp)
-    Threads.@threads for i = 1:nsims
+    @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
@@ -128,7 +128,7 @@ end
 exp = "cobts7"
 if experiments[exp]
     println(exp)
-    Threads.@threads for i = 1:nsims
+    @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         search_updater = BootstrapFilter(cpomdp, search_pf_size, rng)
         solver = COBTSSolver(
@@ -150,7 +150,7 @@ end
 exp = "cpomcpow"
 if experiments[exp]
     println(exp)
-    Threads.@threads for i = 1:nsims
+    @showprogress for i = 1:nsims
         rng = MersenneTwister(rng_stseed+i)
         solver = CPOMCPOWSolver(;cpomcpow_kwargs..., rng = rng)
         planner = solve(solver, cpomdp)
