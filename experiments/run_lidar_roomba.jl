@@ -15,8 +15,8 @@ using ProgressMeter
 experiments = Dict(
     "cpft-heur"=>false,
     "cpft-noheur"=>true,
-    "cobts"=>false,
-    "cpomcpow"=>false,
+    "cobts"=>true,
+    "cpomcpow"=>true,
 )
 nsims = 50
 
@@ -47,8 +47,12 @@ options = [
     BigSpin(cpomdp;max_steps=10), BigSpin(cpomdp;turn_every=2,max_steps=10)
     #TurnThenGo(cpomdp;turn_steps=0,max_steps=40)
     ]
-    
-num_particles = 10000
+
+num_particles = Dict(
+    "cpft-noheur"=>20000,
+    "cobts"=>10000,
+    "cpomcpow"=>10000,
+)
 max_steps = 100
 
 # CPOMCPOW kwargs 
@@ -75,7 +79,7 @@ cpomcpow_kwargs = Dict(
 
 # CPFT-DPW kwargs
 cpft_kwargs = Dict(
-    :n_iterations=>Int(4e3),
+    :n_iterations=>Int(1e2),
 
     # belief-state widening: Bumper = None, Lidar = (1., 1/5)
     :enable_state_pw => true,
@@ -126,7 +130,7 @@ if experiments[exp]
     @showprogress for i = 1:nsims
         Random.seed!(i)
         belief_updater = RoombaParticleFilter(cpomdp.pomdp, 
-            num_particles, v_noise_coefficient, om_noise_coefficient)
+            num_particles[exp], v_noise_coefficient, om_noise_coefficient)
         search_updater = RoombaSearchParticleFilter(cpomdp.pomdp, 30, 
             v_noise_coefficient, om_noise_coefficient)
         solver = COBTSSolver(
@@ -149,7 +153,7 @@ if experiments[exp]
         solver = CPOMCPOWSolver(;cpomcpow_kwargs...)
         p = solve(solver, cpomdp)
         belief_updater = RoombaParticleFilter(cpomdp.pomdp, 
-            num_particles, v_noise_coefficient, om_noise_coefficient)
+            num_particles[exp], v_noise_coefficient, om_noise_coefficient)
         belief_updater = CPOMCPOWBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
@@ -186,7 +190,7 @@ if experiments[exp]
     @showprogress for i = 1:nsims
         Random.seed!(i)
         belief_updater = RoombaParticleFilter(cpomdp.pomdp, 
-            num_particles, v_noise_coefficient, om_noise_coefficient)
+            num_particles[exp], v_noise_coefficient, om_noise_coefficient)
         search_updater = RoombaSearchParticleFilter(cpomdp.pomdp, 30, 
             v_noise_coefficient, om_noise_coefficient)        
         solver = BeliefCMCTSSolver(
