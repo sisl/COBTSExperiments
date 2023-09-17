@@ -141,7 +141,7 @@ if experiments[exp]
     
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPOMCPOW
@@ -157,7 +157,7 @@ if experiments[exp]
         belief_updater = CPOMCPOWBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # CPFT-Infogain
@@ -179,7 +179,7 @@ if experiments[exp]
         updater = CMCTSBudgetUpdateWrapper(belief_updater, planner)
         results[exp][i] = run_cpomdp_simulation(cpomdp, planner, updater, max_steps; track_history=false)
         println("Results for $(exp)")
-        print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+        print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
     end
 end
 
@@ -200,7 +200,7 @@ if experiments[exp]
         belief_updater = CMCTSBudgetUpdateWrapper(belief_updater, p)
         results[exp][i] = run_cpomdp_simulation(cpomdp, p, belief_updater, max_steps; track_history=false)
     end
-    print_and_save(results[exp], "icra_results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
+    print_and_save(results[exp], "results/roomba_lidar_$(exp)_$(nsims)sims.jld2") 
 end
 
 # Print and save
