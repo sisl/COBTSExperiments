@@ -1,3 +1,16 @@
+### Readme
+
+This codebase serves as the experimentation code for ["Constrained Hierarchical Monte Carlo Belief-State Planning"](https://arxiv.org/abs/2310.20054) which will be presented at the 2024 IEEE International Conference on Robotics and Automation (ICRA). If you find this repository useful, please cite our work:
+
+```
+@inproceedings{jamgochian2024constrained,
+  author = {Arec Jamgochian and Hugo Buurmeijer and Kyle H. Wray and Anthony Corso and Mykel J. Kochenderfer},
+  title = {Constrained Hierarchical {M}onte {C}arlo Belief-State Planning},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  year = {2024}
+}
+```
+
 ### Installation Instructions
 
 Experiments were run with [Julia 1.9.0](https://docs.julialang.org/en/v1.9/).
